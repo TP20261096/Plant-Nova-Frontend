@@ -18,9 +18,9 @@ dependencies:
   # Funcionalidad
   image_picker: ^1.0.4
   http: ^1.1.0
+  http_parser: ^4.0.2
   provider: ^6.0.5
   shared_preferences: ^2.2.2  # ← Asegúrate de que esta línea esté aquí
-  geolocator: ^10.1.0  # ← Agregar esta línea
 
   # Utilidades
   intl: ^0.18.1

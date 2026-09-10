@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '/app/theme/app_colors.dart';
 import '/app/routes.dart';
+import '/providers/auth_provider.dart';
 import '/services/onboarding_service.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -41,20 +43,35 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     _navigateToNextScreen();
   }
 
+  /// Tiempo minimo que se ve el splash, para que no parpadee cuando el
+  /// backend responde rapido.
+  static const Duration _minimoEnPantalla = Duration(milliseconds: 1800);
+
   Future<void> _navigateToNextScreen() async {
-    await Future.delayed(const Duration(seconds: 3));
+    final inicio = DateTime.now();
+    final auth = context.read<AuthProvider>();
+
+    final hasSeenOnboarding = await OnboardingService().hasSeenOnboarding();
+    // Pregunta al backend si la sesion guardada sigue siendo valida.
+    await auth.comprobarSesion();
+
+    final transcurrido = DateTime.now().difference(inicio);
+    if (transcurrido < _minimoEnPantalla) {
+      await Future.delayed(_minimoEnPantalla - transcurrido);
+    }
 
     if (!mounted) return;
 
-    final onboardingService = OnboardingService();
-    final hasSeenOnboarding = await onboardingService.hasSeenOnboarding();
+    final String destino;
+    if (!hasSeenOnboarding) {
+      destino = AppRoutes.onboarding;
+    } else if (auth.autenticado) {
+      destino = AppRoutes.home;
+    } else {
+      destino = AppRoutes.login;
+    }
 
-    if (!mounted) return;
-
-    Navigator.pushReplacementNamed(
-      context,
-      hasSeenOnboarding ? AppRoutes.home : AppRoutes.onboarding,
-    );
+    Navigator.pushReplacementNamed(context, destino);
   }
 
   @override

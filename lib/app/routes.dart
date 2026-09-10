@@ -12,9 +12,18 @@ import '../screens/history/diagnosis_history_screen.dart';
 import '../screens/treatments/treatments_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../screens/settings/settings_screen.dart';
+import '../screens/auth/login_screen.dart';
+import '../screens/auth/register_screen.dart';
 
 class AppRoutes {
+  /// Permite navegar sin BuildContext. Lo usa el aviso de sesion expirada,
+  /// que puede dispararse desde cualquier peticion en curso.
+  static final GlobalKey<NavigatorState> navigatorKey =
+  GlobalKey<NavigatorState>();
+
   static const String splash = '/';
+  static const String login = '/login';
+  static const String registro = '/registro';
   static const String onboarding = '/onboarding';
   static const String home = '/home';
   static const String uploadPlant = '/upload-plant';
@@ -75,6 +84,8 @@ class AppRoutes {
   static Map<String, WidgetBuilder> routes = {
     splash: (context) => const SplashScreen(),
     onboarding: (context) => const OnboardingScreen(),
+    login: (context) => const LoginScreen(),
+    registro: (context) => const RegisterScreen(),
     home: (context) => const HomeScreen(),
     uploadPlant: (context) => const UploadPlantScreen(),
     analyzing: (context) => const AnalyzingScreen(),

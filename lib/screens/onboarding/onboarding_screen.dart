@@ -46,7 +46,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     await prefs.setBool('has_seen_onboarding', true);
 
     if (!mounted) return;
-    Navigator.pushReplacementNamed(context, AppRoutes.home);
+    // Antes iba directo al home. Ahora el usuario tiene que identificarse.
+    Navigator.pushReplacementNamed(context, AppRoutes.login);
   }
 
   @override
