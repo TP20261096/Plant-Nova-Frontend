@@ -1,0 +1,39 @@
+name: plantnova
+description: Aplicación móvil para identificación y cuidado de plantas
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI y diseño
+  cupertino_icons: ^1.0.6
+  google_fonts: ^6.1.0
+  path_provider: ^2.1.1
+
+  # Funcionalidad
+  image_picker: ^1.0.4
+  http: ^1.1.0
+  provider: ^6.0.5
+  shared_preferences: ^2.2.2  # ← Asegúrate de que esta línea esté aquí
+  geolocator: ^10.1.0  # ← Agregar esta línea
+
+  # Utilidades
+  intl: ^0.18.1
+  cached_network_image: ^3.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/icons/
