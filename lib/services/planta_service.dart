@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import '../core/api/api_client.dart';
 import '../models/planta.dart';
 
@@ -42,6 +44,21 @@ class PlantaService {
       ) async {
     final datos =
     await _api.put('/plants/$id', body: cambios) as Map<String, dynamic>;
+    return PlantaDetalle.fromJson(datos);
+  }
+
+  /// POST /plants/{id}/photo — multipart/form-data
+  ///
+  /// La planta tiene que existir antes de subirle la foto, asi que al
+  /// registrar una nueva son dos peticiones: primero [crear] y luego esta.
+  ///
+  /// Devuelve la planta con foto_url ya actualizada.
+  Future<PlantaDetalle> subirFoto(String id, File imagen) async {
+    final datos = await _api.postArchivo(
+      '/plants/$id/photo',
+      archivo: imagen,
+      campo: 'imagen',
+    ) as Map<String, dynamic>;
     return PlantaDetalle.fromJson(datos);
   }
 

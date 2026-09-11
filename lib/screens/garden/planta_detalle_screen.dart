@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../app/theme/app_colors.dart';
@@ -26,6 +29,9 @@ class PlantaDetalleScreen extends StatefulWidget {
 }
 
 class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
+  final _picker = ImagePicker();
+  bool _subiendoFoto = false;
+
   @override
   void initState() {
     super.initState();
@@ -100,30 +106,150 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
   }
 
   Widget _foto(PlantaDetalle planta) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: Hero(
-        tag: 'planta_foto_${planta.id}',
-        child: Container(
-          height: 200,
-          width: double.infinity,
-          color: AppColors.primaryBg,
-          child: planta.fotoUrl == null
-              ? const Center(
-            child: Icon(Icons.local_florist,
-                size: 56, color: AppColors.primaryLight),
-          )
-              : Image.network(
-            planta.fotoUrl!,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => const Center(
-              child: Icon(Icons.local_florist,
-                  size: 56, color: AppColors.primaryLight),
+    return GestureDetector(
+      onTap: _subiendoFoto ? null : _menuFoto,
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Hero(
+              tag: 'planta_foto_${planta.id}',
+              child: Container(
+                height: 200,
+                width: double.infinity,
+                color: AppColors.primaryBg,
+                child: planta.fotoUrl == null
+                    ? const Center(
+                  child: Icon(Icons.local_florist,
+                      size: 56, color: AppColors.primaryLight),
+                )
+                    : Image.network(
+                  planta.fotoUrl!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const Center(
+                    child: Icon(Icons.local_florist,
+                        size: 56, color: AppColors.primaryLight),
+                  ),
+                ),
+              ),
             ),
           ),
+          if (_subiendoFoto)
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.black45,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                ),
+              ),
+            )
+          else
+            Positioned(
+              right: 10,
+              bottom: 10,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.55),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.camera_alt_outlined,
+                        size: 14, color: Colors.white),
+                    const SizedBox(width: 5),
+                    Text(
+                      planta.fotoUrl == null ? 'Agregar foto' : 'Cambiar',
+                      style: const TextStyle(
+                          fontSize: 11, color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _menuFoto() {
+    showModalBottomSheet(
+      context: context,
+      builder: (sheet) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('Tomar foto'),
+              onTap: () {
+                Navigator.pop(sheet);
+                _subirFoto(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Elegir de la galería'),
+              onTap: () {
+                Navigator.pop(sheet);
+                _subirFoto(ImageSource.gallery);
+              },
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  Future<void> _subirFoto(ImageSource origen) async {
+    final XFile? elegida;
+    try {
+      elegida = await _picker.pickImage(
+        source: origen,
+        // El backend reduce a 1024 px igual, pero comprimir aca evita subir
+        // 4 MB por una foto que se va a ver en una tarjeta.
+        imageQuality: 85,
+        maxWidth: 1600,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      _avisar('No se pudo acceder a la cámara o la galería', error: true);
+      return;
+    }
+
+    if (elegida == null || !mounted) return;
+
+    setState(() => _subiendoFoto = true);
+    final provider = context.read<PlantaProvider>();
+    final ok = await provider.cambiarFoto(widget.plantaId, File(elegida.path));
+
+    if (!mounted) return;
+    setState(() => _subiendoFoto = false);
+
+    if (ok) {
+      _avisar('Foto actualizada');
+    } else {
+      _avisar(provider.errorDetalle ?? 'No se pudo subir la foto',
+          error: true);
+      provider.limpiarError();
+    }
+  }
+
+  void _avisar(String mensaje, {bool error = false}) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(mensaje),
+          backgroundColor: error ? AppColors.error : AppColors.success,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
   }
 
   Widget _cabecera(PlantaDetalle planta, bool isDark) {

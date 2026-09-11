@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 
 import '../core/api/api_exception.dart';
@@ -90,9 +92,21 @@ class PlantaProvider extends ChangeNotifier {
   ///
   /// Devuelve la planta creada, o null si fallo. La pantalla de resultado de
   /// diagnostico necesita el id para vincular despues.
-  Future<PlantaDetalle?> crear(PlantaForm form) async {
+  Future<PlantaDetalle?> crear(PlantaForm form, {File? foto}) async {
     try {
-      final creada = await _service.crear(form);
+      var creada = await _service.crear(form);
+
+      // La foto va en una segunda peticion porque necesita el id. Si falla,
+      // no deshacemos el registro: la planta ya existe y es util sin foto.
+      // El usuario puede volver a intentarlo desde el detalle.
+      if (foto != null) {
+        try {
+          creada = await _service.subirFoto(creada.id, foto);
+        } catch (_) {
+          _error = 'La planta se registró, pero la foto no se pudo subir.';
+        }
+      }
+
       // Recargamos en vez de insertar a mano: el backend calcula estado y
       // riego al crear, y esos valores no los conocemos desde aca.
       await cargar(silencioso: true);
@@ -125,6 +139,23 @@ class PlantaProvider extends ChangeNotifier {
       return false;
     } catch (_) {
       _errorDetalle = 'No se pudo guardar los cambios.';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// POST /plants/{id}/photo — cambiar la foto de una planta ya registrada.
+  Future<bool> cambiarFoto(String id, File imagen) async {
+    try {
+      _detalle = await _service.subirFoto(id, imagen);
+      await cargar(silencioso: true);
+      return true;
+    } on ApiException catch (e) {
+      _errorDetalle = e.mensaje;
+      notifyListeners();
+      return false;
+    } catch (_) {
+      _errorDetalle = 'No se pudo subir la foto.';
       notifyListeners();
       return false;
     }

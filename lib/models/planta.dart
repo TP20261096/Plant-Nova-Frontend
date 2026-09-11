@@ -180,13 +180,15 @@ class DiagnosticoResumen {
 /// Existe como clase aparte a proposito: el backend rechaza `estado` y
 /// `riego_frecuencia_dias`, asi que si mandaramos una Planta serializada
 /// entera nos daria 400. Aca solo estan los campos que si se pueden enviar.
+///
+/// `foto_url` NO va aca. La foto se establece unicamente por
+/// POST /plants/{id}/photo; mandarla en este cuerpo devuelve 422.
 class PlantaForm {
   final String apodo;
   final Ubicacion ubicacion;
   final Etapa etapa;
   final String? speciesId;
   final DateTime? fechaSiembra;
-  final String? fotoUrl;
 
   const PlantaForm({
     required this.apodo,
@@ -194,7 +196,6 @@ class PlantaForm {
     required this.etapa,
     this.speciesId,
     this.fechaSiembra,
-    this.fotoUrl,
   });
 
   Map<String, dynamic> toJson() => {
@@ -204,7 +205,6 @@ class PlantaForm {
     'species_id': speciesId,
     'fecha_siembra':
     fechaSiembra == null ? null : Json.aFechaApi(fechaSiembra!),
-    'foto_url': fotoUrl,
   };
 
   /// PUT acepta campos parciales, asi que enviamos solo lo que cambio.
@@ -218,7 +218,6 @@ class PlantaForm {
     }
     if (etapa != original.etapa) cambios['etapa'] = etapa.valor;
     if (speciesId != original.speciesId) cambios['species_id'] = speciesId;
-    if (fotoUrl != original.fotoUrl) cambios['foto_url'] = fotoUrl;
 
     final fechaOriginal = original.fechaSiembra;
     final cambioFecha = fechaSiembra == null

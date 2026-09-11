@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../app/theme/app_colors.dart';
@@ -32,6 +35,8 @@ class _RegistrarPlantaScreenState extends State<RegistrarPlantaScreen> {
   final _formKey = GlobalKey<FormState>();
   final _apodoCtrl = TextEditingController();
 
+  final _picker = ImagePicker();
+  File? _foto;
   Especie? _especie;
   Ubicacion _ubicacion = Ubicacion.balcon;
   Etapa _etapa = Etapa.germinacion;
@@ -42,6 +47,70 @@ class _RegistrarPlantaScreenState extends State<RegistrarPlantaScreen> {
   void dispose() {
     _apodoCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _elegirFoto(ImageSource origen) async {
+    try {
+      final elegida = await _picker.pickImage(
+        source: origen,
+        // El backend rechaza mas de 10 MB; comprimir aca evita el 413 y
+        // ahorra datos al usuario.
+        imageQuality: 85,
+        maxWidth: 1600,
+      );
+      if (elegida != null) setState(() => _foto = File(elegida.path));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(origen == ImageSource.camera
+              ? 'No se pudo acceder a la cámara'
+              : 'No se pudo acceder a la galería'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  void _menuFoto() {
+    showModalBottomSheet(
+      context: context,
+      builder: (sheet) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('Tomar foto'),
+              onTap: () {
+                Navigator.pop(sheet);
+                _elegirFoto(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Elegir de la galería'),
+              onTap: () {
+                Navigator.pop(sheet);
+                _elegirFoto(ImageSource.gallery);
+              },
+            ),
+            if (_foto != null)
+              ListTile(
+                leading: const Icon(Icons.delete_outline,
+                    color: AppColors.error),
+                title: const Text('Quitar foto',
+                    style: TextStyle(color: AppColors.error)),
+                onTap: () {
+                  Navigator.pop(sheet);
+                  setState(() => _foto = null);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _elegirEspecie() async {
@@ -79,13 +148,16 @@ class _RegistrarPlantaScreenState extends State<RegistrarPlantaScreen> {
     setState(() => _guardando = true);
 
     final provider = context.read<PlantaProvider>();
-    final creada = await provider.crear(PlantaForm(
-      apodo: _apodoCtrl.text,
-      ubicacion: _ubicacion,
-      etapa: _etapa,
-      speciesId: _especie?.id,
-      fechaSiembra: _fechaSiembra,
-    ));
+    final creada = await provider.crear(
+      PlantaForm(
+        apodo: _apodoCtrl.text,
+        ubicacion: _ubicacion,
+        etapa: _etapa,
+        speciesId: _especie?.id,
+        fechaSiembra: _fechaSiembra,
+      ),
+      foto: _foto,
+    );
 
     if (!mounted) return;
     setState(() => _guardando = false);
@@ -126,7 +198,10 @@ class _RegistrarPlantaScreenState extends State<RegistrarPlantaScreen> {
               children: [
                 Text('Información de la planta',
                     style: AppTextStyles.headlineMedium),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
+
+                _campoFoto(isDark),
+                const SizedBox(height: 20),
 
                 TextFormField(
                   controller: _apodoCtrl,
@@ -209,6 +284,36 @@ class _RegistrarPlantaScreenState extends State<RegistrarPlantaScreen> {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _campoFoto(bool isDark) {
+    return Center(
+      child: GestureDetector(
+        onTap: _guardando ? null : _menuFoto,
+        child: Container(
+          width: 120,
+          height: 120,
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkPrimaryBg : AppColors.primaryBg,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: _foto == null
+              ? const Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.add_a_photo_outlined,
+                  size: 28, color: AppColors.primary),
+              SizedBox(height: 6),
+              Text('Agregar foto',
+                  style: TextStyle(
+                      fontSize: 11, color: AppColors.primary)),
+            ],
+          )
+              : Image.file(_foto!, fit: BoxFit.cover),
         ),
       ),
     );
