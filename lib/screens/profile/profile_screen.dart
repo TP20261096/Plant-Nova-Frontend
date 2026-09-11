@@ -23,7 +23,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   String _userName = 'Usuario';
-  String _userDescription = 'Amante de los cultivos';
+  String _userDescription = 'Amante de los cultivos gaa';
   String? _profileImagePath;
 
   @override
