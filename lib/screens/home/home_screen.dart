@@ -13,7 +13,7 @@ import '../../models/actividad.dart';
 import '../../providers/actividad_provider.dart';
 import '../../providers/planta_provider.dart';
 import '../../widgets/home/actividad_card.dart';
-import '../profile/profile_screen.dart';
+import '../profile/perfil_screen.dart';
 import '../diagnosis/upload_plant_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -59,7 +59,7 @@ class _HomeScreenState extends State<HomeScreen> {
       const GuiaScreen(isEmbedded: true),
       const UploadPlantScreen(isEmbedded: true),
       const JardinScreen(isEmbedded: true),
-      const ProfileScreen(isEmbedded: true),
+      const PerfilScreen(isEmbedded: true),
     ];
 
     return Scaffold(

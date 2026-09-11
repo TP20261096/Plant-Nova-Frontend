@@ -11,6 +11,7 @@ import 'providers/planta_provider.dart';
 import 'providers/guia_provider.dart';
 import 'providers/actividad_provider.dart';
 import 'providers/diagnostico_provider.dart';
+import 'providers/perfil_provider.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,6 +31,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => GuiaProvider()),
         ChangeNotifierProvider(create: (_) => ActividadProvider()),
         ChangeNotifierProvider(create: (_) => DiagnosticoProvider()),
+        ChangeNotifierProvider(create: (_) => PerfilProvider()),
       ],
       child: const PlantNovaApp(),
     ),
