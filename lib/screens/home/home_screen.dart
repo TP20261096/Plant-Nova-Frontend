@@ -13,6 +13,7 @@ import '../plants/my_plants_screen.dart';
 import '../history/diagnosis_history_screen.dart';
 import '../profile/profile_screen.dart';
 import '../diagnosis/upload_plant_screen.dart';
+import '../garden/jardin_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -56,7 +57,8 @@ class _HomeScreenState extends State<HomeScreen> {
       _buildHomeContent(context),
       const MyPlantsScreen(isEmbedded: true),
       const UploadPlantScreen(isEmbedded: true),
-      const DiagnosisHistoryScreen(isEmbedded: true),
+      // const DiagnosisHistoryScreen(isEmbedded: true),
+      const JardinScreen(isEmbedded: true),
       const ProfileScreen(isEmbedded: true),
     ];
 
