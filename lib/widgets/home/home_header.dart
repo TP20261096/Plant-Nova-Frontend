@@ -1,36 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
+
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_text_styles.dart';
+import '../../providers/auth_provider.dart';
 
-class HomeHeader extends StatefulWidget {
+/// Saludo del menu Inicio.
+///
+/// Antes leia el nombre de SharedPreferences con la clave 'user_name', que
+/// nadie escribia nunca: el saludo siempre decia "Usuario". Ahora sale del
+/// usuario autenticado, y se actualiza solo si cambia el nombre en Perfil.
+class HomeHeader extends StatelessWidget {
   const HomeHeader({Key? key}) : super(key: key);
-
-  @override
-  State<HomeHeader> createState() => _HomeHeaderState();
-}
-
-class _HomeHeaderState extends State<HomeHeader> {
-  String _userName = '';
-
-  @override
-  void initState() {
-    super.initState();
-    _loadUserName();
-  }
-
-  Future<void> _loadUserName() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (mounted) {
-      setState(() {
-        _userName = prefs.getString('user_name') ?? '';
-      });
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final usuario = context.watch<AuthProvider>().usuario;
+
+    // Solo el primer nombre: "Emerson Rodriguez Vela" no entra en una linea.
+    final nombre = (usuario?.nombre ?? '').trim().split(' ').first;
 
     return Container(
       width: double.infinity,
@@ -38,7 +27,6 @@ class _HomeHeaderState extends State<HomeHeader> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Saludo con nombre del usuario
           RichText(
             textAlign: TextAlign.center,
             maxLines: 1,
@@ -46,15 +34,17 @@ class _HomeHeaderState extends State<HomeHeader> {
             text: TextSpan(
               children: [
                 TextSpan(
-                  text: '${_getGreeting()}, ',
+                  text: '${_saludo()}, ',
                   style: AppTextStyles.titleLarge.copyWith(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
-                    color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                    color: isDark
+                        ? AppColors.darkTextPrimary
+                        : AppColors.textPrimary,
                   ),
                 ),
                 TextSpan(
-                  text: _userName.isEmpty ? 'Usuario' : _userName,
+                  text: nombre.isEmpty ? 'Usuario' : nombre,
                   style: AppTextStyles.titleLarge.copyWith(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
@@ -67,27 +57,25 @@ class _HomeHeaderState extends State<HomeHeader> {
           const SizedBox(height: 4),
           Text(
             '¿Cómo están tus cultivos hoy?',
-            style: AppTextStyles.bodySmall.copyWith(
-              fontSize: 13,
-              color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
-            ),
             textAlign: TextAlign.center,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.bodySmall.copyWith(
+              fontSize: 13,
+              color: isDark
+                  ? AppColors.darkTextSecondary
+                  : AppColors.textSecondary,
+            ),
           ),
         ],
       ),
     );
   }
 
-  String _getGreeting() {
-    final hour = DateTime.now().hour;
-    if (hour >= 5 && hour < 12) {
-      return 'Buenos días';
-    } else if (hour >= 12 && hour < 18) {
-      return 'Buenas tardes';
-    } else {
-      return 'Buenas noches';
-    }
+  String _saludo() {
+    final hora = DateTime.now().hour;
+    if (hora >= 5 && hora < 12) return 'Buenos días';
+    if (hora >= 12 && hora < 18) return 'Buenas tardes';
+    return 'Buenas noches';
   }
 }

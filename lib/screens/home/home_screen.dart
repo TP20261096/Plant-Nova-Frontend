@@ -3,18 +3,18 @@ import 'package:provider/provider.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../app/routes.dart';
-import '../../providers/plant_provider.dart';
 import '../../providers/diagnosis_provider.dart';
 import '../../providers/weather_provider.dart';
 import '../../widgets/navigation/custom_bottom_navigation.dart';
 import '../../widgets/home/home_header.dart';
-import '../../widgets/home/activity_card.dart';
-import '../plants/my_plants_screen.dart';
-import '../history/diagnosis_history_screen.dart';
+import '../guide/guia_screen.dart';
+import '../garden/jardin_screen.dart';
+import '../../models/actividad.dart';
+import '../../providers/actividad_provider.dart';
+import '../../providers/planta_provider.dart';
+import '../../widgets/home/actividad_card.dart';
 import '../profile/profile_screen.dart';
 import '../diagnosis/upload_plant_screen.dart';
-import '../garden/jardin_screen.dart';
-import '../guide/guia_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -32,7 +32,8 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<PlantProvider>().loadPlants();
+      context.read<PlantaProvider>().cargar();
+      context.read<ActividadProvider>().cargar();
       context.read<DiagnosisProvider>().loadDiagnoses();
       context.read<WeatherProvider>().loadWeather();
 
@@ -56,10 +57,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final List<Widget> screens = [
       _buildHomeContent(context),
-      // const MyPlantsScreen(isEmbedded: true),
       const GuiaScreen(isEmbedded: true),
       const UploadPlantScreen(isEmbedded: true),
-      // const DiagnosisHistoryScreen(isEmbedded: true),
       const JardinScreen(isEmbedded: true),
       const ProfileScreen(isEmbedded: true),
     ];
@@ -130,13 +129,18 @@ class _HomeScreenState extends State<HomeScreen> {
         controller: _pageController,
         itemCount: 5,
         onPageChanged: (index) {
+          final fecha = DateTime.now().add(Duration(days: index - 2));
           setState(() {
-            _selectedDate = DateTime.now().add(Duration(days: index - 2));
+            _selectedDate = fecha;
           });
+          // El backend decide que hay ese dia; nosotros solo se lo pedimos.
+          context.read<ActividadProvider>().seleccionarFecha(fecha);
         },
         itemBuilder: (context, index) {
           final date = DateTime.now().add(Duration(days: index - 2));
-          final isSelected = index == 2;
+          // Antes comparaba index == 2, asi que el recuadro verde se quedaba
+          // siempre en hoy aunque deslizaras a otro dia.
+          final isSelected = _mismoDia(date, _selectedDate);
           return _buildDayCard(date, isSelected);
         },
       ),
@@ -215,30 +219,101 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildActivitiesForDate(BuildContext context) {
-    final activities = _getActivitiesForDate(_selectedDate);
+    final provider = context.watch<ActividadProvider>();
 
-    return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      children: [
-        if (activities.isEmpty)
-          _buildEmptyActivities(context)
-        else
-          ...activities.map((activity) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: ActivityCard(activity: activity),
-            );
-          }).toList(),
-        const SizedBox(height: 16),
-        _buildWeatherCard(context),
-        const SizedBox(height: 8),
-        _buildPlantStatusSummary(context),
-        const SizedBox(height: 8),
-        _buildQuickTip(context),
-        const SizedBox(height: 80),
-      ],
+    return RefreshIndicator(
+      onRefresh: () => provider.cargar(silencioso: true),
+      child: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        children: [
+          if (provider.cargando)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (provider.error != null)
+            _buildActivitiesError(context, provider)
+          else if (provider.actividades.isEmpty)
+              _buildEmptyActivities(context)
+            else
+              ...provider.actividades.map((actividad) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: ActividadCard(
+                    actividad: actividad,
+                    completando: provider.estaCompletando(actividad.id),
+                    onCompletar: () => _completar(actividad),
+                    onRevisar: () => _revisar(actividad),
+                  ),
+                );
+              }),
+          const SizedBox(height: 16),
+          _buildWeatherCard(context),
+          const SizedBox(height: 8),
+          _buildPlantStatusSummary(context),
+          const SizedBox(height: 8),
+          _buildQuickTip(context),
+          const SizedBox(height: 80),
+        ],
+      ),
     );
   }
+
+  /// Marca la tarea y refresca el jardin: completar un riego cambia
+  /// ultimo_riego y proximo_riego de la planta.
+  Future<void> _completar(Actividad actividad) async {
+    final provider = context.read<ActividadProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await provider.completar(actividad);
+    if (!mounted) return;
+    if (ok) {
+      context.read<PlantaProvider>().cargar(silencioso: true);
+    } else {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(provider.error ?? 'No se pudo completar la tarea'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      provider.limpiarError();
+    }
+  }
+
+  /// Las actividades de tipo Revision se cierran con una foto nueva, no
+  /// marcandolas a mano.
+  void _revisar(Actividad actividad) {
+    context.read<DiagnosisProvider>().setPlantId(actividad.plantId);
+    Navigator.pushNamed(context, AppRoutes.uploadPlant);
+  }
+
+  Widget _buildActivitiesError(
+      BuildContext context,
+      ActividadProvider provider,
+      ) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.only(bottom: 6),
+      child: Column(
+        children: [
+          const Icon(Icons.cloud_off, color: AppColors.textTertiary),
+          const SizedBox(height: 8),
+          Text(
+            provider.error!,
+            textAlign: TextAlign.center,
+            style: AppTextStyles.bodySmall,
+          ),
+          TextButton(
+            onPressed: () => provider.cargar(),
+            child: const Text('Reintentar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool _mismoDia(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
 
   Widget _buildEmptyActivities(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -523,10 +598,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildPlantStatusSummary(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final plantProvider = context.watch<PlantProvider>();
-    final totalPlants = plantProvider.plants.length;
-    final healthyPlants = plantProvider.healthyPlantsCount;
-    final attentionPlants = plantProvider.plantsNeedingAttention;
+    final plantProvider = context.watch<PlantaProvider>();
+    final totalPlants = plantProvider.totalPlantas;
+    final healthyPlants = plantProvider.sanas;
+    // El backend distingue "en tratamiento" de "sin diagnostico"; antes
+    // ambas caian en el mismo saco de "necesita atencion".
+    final attentionPlants = plantProvider.enTratamiento;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 8),
@@ -557,8 +634,9 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               GestureDetector(
                 onTap: () {
+                  // Iba al indice 1, que es la Guia. El jardin es el 3.
                   setState(() {
-                    _currentIndex = 1;
+                    _currentIndex = 3;
                   });
                 },
                 child: Text(
@@ -585,7 +663,7 @@ class _HomeScreenState extends State<HomeScreen> {
               _buildStatusItem(
                 icon: Icons.warning,
                 color: AppColors.warning,
-                label: 'Atención',
+                label: 'Tratamiento',
                 value: attentionPlants,
               ),
               const SizedBox(width: 8),
@@ -696,64 +774,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
-  }
-
-  List<Map<String, dynamic>> _getActivitiesForDate(DateTime date) {
-    final plantProvider = context.read<PlantProvider>();
-
-    // Obtener actividades basadas en diagnósticos
-    final diagnosticActivities = plantProvider.generateActivitiesForDate(date);
-
-    // Si hay actividades de diagnósticos, usarlas
-    if (diagnosticActivities.isNotEmpty) {
-      return diagnosticActivities;
-    }
-
-    // Si no hay plantas con diagnósticos, usar actividades generales
-    final dayOfWeek = date.weekday;
-    final activities = <Map<String, dynamic>>[];
-
-    if (dayOfWeek == 1 || dayOfWeek == 4) {
-      activities.add({
-        'id': 'riego_general',
-        'title': 'Regar cultivos',
-        'description': 'Regar todas las plantas del jardín',
-        'icon': '💧',
-        'type': 'riego',
-      });
-    }
-
-    if (dayOfWeek == 2 || dayOfWeek == 5) {
-      activities.add({
-        'id': 'monitoreo_general',
-        'title': 'Monitorear plagas',
-        'description': 'Revisar hojas y frutos en busca de insectos',
-        'icon': '🔍',
-        'type': 'monitoreo',
-      });
-    }
-
-    if (dayOfWeek == 3) {
-      activities.add({
-        'id': 'fertilizacion_general',
-        'title': 'Fertilizar',
-        'description': 'Aplicar compost a los cultivos',
-        'icon': '🌱',
-        'type': 'fertilizacion',
-      });
-    }
-
-    if (dayOfWeek == 6) {
-      activities.add({
-        'id': 'cosecha_general',
-        'title': 'Cosechar',
-        'description': 'Recolectar frutos y verduras maduras',
-        'icon': '🧺',
-        'type': 'cosecha',
-      });
-    }
-
-    return activities;
   }
 
   String _getDayName(DateTime date) {

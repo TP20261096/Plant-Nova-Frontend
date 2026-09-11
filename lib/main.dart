@@ -9,6 +9,7 @@ import 'providers/theme_provider.dart';
 import 'providers/weather_provider.dart';
 import 'providers/planta_provider.dart';
 import 'providers/guia_provider.dart';
+import 'providers/actividad_provider.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,6 +27,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => WeatherProvider()),
         ChangeNotifierProvider(create: (_) => PlantaProvider()),
         ChangeNotifierProvider(create: (_) => GuiaProvider()),
+        ChangeNotifierProvider(create: (_) => ActividadProvider()),
       ],
       child: const PlantNovaApp(),
     ),
