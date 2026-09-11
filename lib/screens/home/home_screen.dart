@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../app/routes.dart';
-import '../../providers/diagnosis_provider.dart';
+import '../../providers/diagnostico_provider.dart';
 import '../../providers/weather_provider.dart';
 import '../../widgets/navigation/custom_bottom_navigation.dart';
 import '../../widgets/home/home_header.dart';
@@ -34,7 +34,6 @@ class _HomeScreenState extends State<HomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<PlantaProvider>().cargar();
       context.read<ActividadProvider>().cargar();
-      context.read<DiagnosisProvider>().loadDiagnoses();
       context.read<WeatherProvider>().loadWeather();
 
       // Verificar si viene de guardar diagnóstico
@@ -92,7 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
         break;
       case 2:
       // Limpiar el plantId antes de navegar a analizar
-        context.read<DiagnosisProvider>().clearPlantId();
+        context.read<DiagnosticoProvider>().limpiarPlanta();
         Navigator.pushNamed(context, AppRoutes.uploadPlant);
         break;
       case 3:
@@ -283,7 +282,7 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Las actividades de tipo Revision se cierran con una foto nueva, no
   /// marcandolas a mano.
   void _revisar(Actividad actividad) {
-    context.read<DiagnosisProvider>().setPlantId(actividad.plantId);
+    context.read<DiagnosticoProvider>().fijarPlanta(actividad.plantId);
     Navigator.pushNamed(context, AppRoutes.uploadPlant);
   }
 

@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../app/routes.dart';
-import '../../providers/diagnosis_provider.dart';
+import '../../providers/diagnostico_provider.dart';
 import '../../widgets/common/primary_button.dart';
 import '../../widgets/common/secondary_button.dart';
 
@@ -36,13 +36,13 @@ class _UploadPlantScreenState extends State<UploadPlantScreen> {
       if (args != null && args is Map) {
         _plantId = args['plantId'] as String?;
         if (_plantId != null) {
-          context.read<DiagnosisProvider>().setPlantId(_plantId);
+          context.read<DiagnosticoProvider>().fijarPlanta(_plantId);
         } else {
-          context.read<DiagnosisProvider>().clearPlantId();
+          context.read<DiagnosticoProvider>().limpiarPlanta();
         }
       } else {
         // Si no hay argumentos, limpiar el plantId
-        context.read<DiagnosisProvider>().clearPlantId();
+        context.read<DiagnosticoProvider>().limpiarPlanta();
       }
     });
   }
@@ -91,11 +91,11 @@ class _UploadPlantScreenState extends State<UploadPlantScreen> {
       return;
     }
 
-    context.read<DiagnosisProvider>().setSelectedImage(_imagePath);
+    context.read<DiagnosticoProvider>().seleccionarImagen(_imagePath);
 
     // Si viene del jardín, pasar el ID de la planta
     if (_plantId != null) {
-      context.read<DiagnosisProvider>().setPlantId(_plantId);
+      context.read<DiagnosticoProvider>().fijarPlanta(_plantId);
     }
 
     Navigator.pushNamed(context, AppRoutes.analyzing);

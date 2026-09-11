@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../app/routes.dart';
-import '../../providers/diagnosis_provider.dart';
+import '../../providers/diagnostico_provider.dart';
 
 class AnalyzingScreen extends StatefulWidget {
   const AnalyzingScreen({Key? key}) : super(key: key);
@@ -71,48 +71,47 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
   }
 
   Future<void> _startAnalysis() async {
-    final diagnosisProvider = context.read<DiagnosisProvider>();
-    final imagePath = diagnosisProvider.selectedImagePath;
+    final provider = context.read<DiagnosticoProvider>();
 
-    if (imagePath != null) {
-      // Iniciar la barra de progreso
-      _progressController.forward();
-
-      // Esperar a que la barra llegue al final (4 segundos)
-      await Future.delayed(const Duration(seconds: 4));
-
-      if (!mounted) return;
-
-      // Mostrar "Diagnóstico listo" cuando la barra está completa
-      setState(() {
-        _isComplete = true;
-      });
-
-      // Esperar un momento con la barra completa
-      await Future.delayed(const Duration(milliseconds: 800));
-
-      if (!mounted) return;
-
-      // Realizar el análisis real
-      await diagnosisProvider.analyzePlant(imagePath);
-
-      if (!mounted) return;
-
-      if (diagnosisProvider.error != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(diagnosisProvider.error!),
-            backgroundColor: AppColors.error,
-          ),
-        );
-        Navigator.pop(context);
-      } else {
-        Navigator.pushReplacementNamed(
-          context,
-          AppRoutes.diagnosisResult,
-        );
-      }
+    if (provider.imagen == null) {
+      Navigator.pop(context);
+      return;
     }
+
+    _progressController.forward();
+
+    // La peticion sale de inmediato y la animacion corre en paralelo. Antes
+    // se esperaban 4,8 segundos y recien despues se llamaba al servicio, asi
+    // que el usuario pagaba la animacion mas el tiempo del modelo.
+    final analisis = provider.analizar();
+    final minimo = Future.delayed(const Duration(milliseconds: 2500));
+
+    final ok = await analisis;
+    await minimo;
+
+    if (!mounted) return;
+
+    setState(() {
+      _isComplete = true;
+    });
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    if (!mounted) return;
+
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(provider.error ?? 'No se pudo analizar la imagen'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      provider.limpiarError();
+      Navigator.pop(context);
+      return;
+    }
+
+    Navigator.pushReplacementNamed(context, AppRoutes.diagnosticoResultado);
   }
 
   void _startMessageRotation() {

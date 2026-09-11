@@ -12,6 +12,7 @@ import '../screens/history/diagnosis_history_screen.dart';
 import '../screens/treatments/treatments_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../screens/settings/settings_screen.dart';
+import '../screens/diagnosis/diagnostico_resultado_screen.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/register_screen.dart';
 
@@ -24,6 +25,7 @@ class AppRoutes {
   static const String splash = '/';
   static const String login = '/login';
   static const String registro = '/registro';
+  static const String diagnosticoResultado = '/diagnostico-resultado';
   static const String onboarding = '/onboarding';
   static const String home = '/home';
   static const String uploadPlant = '/upload-plant';
@@ -86,6 +88,7 @@ class AppRoutes {
     onboarding: (context) => const OnboardingScreen(),
     login: (context) => const LoginScreen(),
     registro: (context) => const RegisterScreen(),
+    diagnosticoResultado: (context) => const DiagnosticoResultadoScreen(),
     home: (context) => const HomeScreen(),
     uploadPlant: (context) => const UploadPlantScreen(),
     analyzing: (context) => const AnalyzingScreen(),

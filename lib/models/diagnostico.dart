@@ -120,8 +120,15 @@ class Diagnostico {
   List<Tratamiento> get tratamientosAlternativos =>
       tratamientos.length <= 1 ? const [] : tratamientos.sublist(1);
 
+  /// El cultivo detectado no coincide con la especie registrada.
+  ///
+  /// Solo tiene sentido cuando el diagnostico ya pertenece a una planta: si
+  /// todavia no esta vinculado, no hay especie registrada contra la cual
+  /// comparar y el campo no significa nada.
+  bool get especieNoCoincide => estaVinculado && !especieConfirmada;
+
   /// true si hay algo que advertirle al usuario antes de que confie en esto.
-  bool get requiereAdvertencia => confianzaBaja || !especieConfirmada;
+  bool get requiereAdvertencia => confianzaBaja || especieNoCoincide;
 }
 
 /// Una de las tres clases mas probables que devolvio el modelo.

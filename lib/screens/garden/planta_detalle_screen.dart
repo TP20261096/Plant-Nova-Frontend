@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../models/planta.dart';
+import '../../app/routes.dart';
+import '../../providers/diagnostico_provider.dart';
 import '../../providers/planta_provider.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/loading_view.dart';
@@ -276,7 +278,11 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
             ),
           )
         else
-          ...planta.diagnosticos.map((d) => _filaDiagnostico(d, isDark)),
+          ...planta.diagnosticos.map((d) => InkWell(
+            onTap: () => _abrirDiagnostico(d.id),
+            borderRadius: BorderRadius.circular(14),
+            child: _filaDiagnostico(d, isDark),
+          )),
       ],
     );
   }
@@ -348,6 +354,41 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
         ],
       ),
     );
+  }
+
+  /// Abre un diagnostico del historial.
+  ///
+  /// Hay que volver a pedirlo con GET /diagnoses/{id} en vez de reusar lo que
+  /// trae el detalle de la planta: el resumen no incluye sintomas ni
+  /// tratamientos, y los enlaces de imagen caducan en una hora.
+  Future<void> _abrirDiagnostico(String id) async {
+    final provider = context.read<DiagnosticoProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    final ok = await provider.cargar(id);
+
+    if (!mounted) return;
+    Navigator.pop(context); // cierra el indicador
+
+    if (!ok) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(provider.error ?? 'No se pudo abrir el diagnóstico'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      provider.limpiarError();
+      return;
+    }
+
+    Navigator.pushNamed(context, AppRoutes.diagnosticoResultado);
   }
 
   Widget _tarjeta(bool isDark, {required Widget child}) {
