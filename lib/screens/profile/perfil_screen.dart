@@ -13,9 +13,11 @@ import '../../providers/planta_provider.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/loading_view.dart';
 import 'editar_perfil_screen.dart';
+import 'dart:io';
+import 'package:shared_preferences/shared_preferences.dart';
 
-/// Menu Perfil. Reemplaza a ProfileScreen, que leia nombre, descripcion y
-/// foto de SharedPreferences y contaba las plantas desde la lista local.
+/// Menu Perfil. Fusiona el diseno visual anterior con los datos reales
+/// del backend (PerfilProvider).
 class PerfilScreen extends StatefulWidget {
   final bool isEmbedded;
 
@@ -40,7 +42,8 @@ class _PerfilScreenState extends State<PerfilScreen> {
     final provider = context.watch<PerfilProvider>();
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
+      backgroundColor:
+      isDark ? AppColors.darkBackground : AppColors.background,
       appBar: widget.isEmbedded
           ? null
           : AppBar(
@@ -79,67 +82,200 @@ class _PerfilScreenState extends State<PerfilScreen> {
               style: AppTextStyles.headlineMedium.copyWith(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-                color:
-                isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                color: isDark
+                    ? AppColors.darkTextPrimary
+                    : AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: 16),
           ],
           _datos(perfil, isDark),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
           _opciones(perfil, isDark),
         ],
       ),
     );
   }
 
+  // ═══════════════════════════════════════════════════════════
+  // TARJETA DE DATOS DEL USUARIO
+  // ═══════════════════════════════════════════════════════════
   Widget _datos(Perfil perfil, bool isDark) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : AppColors.surface,
         borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         children: [
-          // Sin subida de foto: las iniciales sobre el color de marca son
-          // suficientes y evitan un endpoint mas.
-          CircleAvatar(
-            radius: 38,
-            backgroundColor: AppColors.primary,
-            child: Text(
-              perfil.iniciales,
-              style: const TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-          Text(perfil.nombre, style: AppTextStyles.titleLarge),
-          const SizedBox(height: 2),
-          Text(
-            perfil.email,
-            style: AppTextStyles.bodySmall
-                .copyWith(color: AppColors.textSecondary),
-          ),
-          const SizedBox(height: 14),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          // ── Fila: avatar + info, con badge flotante a la derecha ──
+          Stack(
             children: [
-              _dato(
-                Icons.local_florist,
-                '${perfil.plantasRegistradas}',
-                perfil.plantasRegistradas == 1 ? 'planta' : 'plantas',
+              // Contenido: avatar + nombre/email/distrito
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Avatar
+                  Container(
+                    width: 70,
+                    height: 70,
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? AppColors.darkPrimaryBg
+                          : AppColors.primaryBg,
+                      shape: BoxShape.circle,
+                    ),
+                    child: _buildAvatar(perfil, isDark),
+                  ),
+                  const SizedBox(width: 16),
+
+                  // Nombre + email + distrito
+                  Expanded(
+                    child: Padding(
+                      // Espacio a la derecha para que el texto no quede
+                      // debajo del badge flotante
+                      padding: const EdgeInsets.only(right: 105),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            perfil.nombre,
+                            style: AppTextStyles.headlineMedium.copyWith(
+                              color: isDark
+                                  ? AppColors.darkTextPrimary
+                                  : AppColors.textPrimary,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            perfil.email,
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              color: isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.textSecondary,
+                              fontSize: 13,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (perfil.tieneDistrito) ...[
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.place_outlined,
+                                  size: 14,
+                                  color: AppColors.primaryLight,
+                                ),
+                                const SizedBox(width: 4),
+                                Flexible(
+                                  child: Text(
+                                    perfil.distrito!,
+                                    style: AppTextStyles.bodySmall.copyWith(
+                                      color: AppColors.primaryLight,
+                                      fontSize: 12,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              _dato(
-                Icons.place_outlined,
-                perfil.distrito ?? 'Sin definir',
-                'distrito',
+
+              // Badge flotante en la esquina superior derecha
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryLight.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: AppColors.primaryLight.withOpacity(0.3),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.local_florist,
+                        color: AppColors.primaryLight,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '${perfil.plantasRegistradas} '
+                            '${perfil.plantasRegistradas == 1 ? "planta" : "plantas"}',
+                        style: AppTextStyles.titleMedium.copyWith(
+                          color: AppColors.primaryLight,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
+
+          const SizedBox(height: 16),
+
+          // ── Botón "Editar perfil" ──
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const EditarPerfilScreen(),
+                  ),
+                );
+                if (result == true && mounted) {
+                  await context
+                      .read<PerfilProvider>()
+                      .cargar(silencioso: true);
+                }
+              },
+              icon: const Icon(Icons.edit, size: 18),
+              label: const Text('Editar perfil'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primaryLight,
+                side: const BorderSide(color: AppColors.primaryLight),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+
+          // Aviso de distrito faltante
           if (!perfil.tieneDistrito) ...[
             const SizedBox(height: 14),
             Container(
@@ -150,8 +286,11 @@ class _PerfilScreenState extends State<PerfilScreen> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.info_outline,
-                      size: 18, color: AppColors.warning),
+                  const Icon(
+                    Icons.info_outline,
+                    size: 18,
+                    color: AppColors.warning,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -168,43 +307,58 @@ class _PerfilScreenState extends State<PerfilScreen> {
       ),
     );
   }
+  /// Avatar: foto del backend si existe, sino iniciales.
+  Widget _buildAvatar(Perfil perfil, bool isDark) {
+    // Aquí necesitas cargar la foto local
+    // Pero como build es síncrono, lo mejor es:
 
-  Widget _dato(IconData icono, String valor, String etiqueta) {
-    return Column(
-      children: [
-        Icon(icono, size: 20, color: AppColors.primary),
-        const SizedBox(height: 4),
-        Text(
-          valor,
-          style: AppTextStyles.titleMedium.copyWith(fontSize: 14),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+    // Opción A: Cargarla en el provider
+    // Opción B: Usar un FutureBuilder
+    // Opción C: Pasarla desde el Provider
+
+    // Por ahora, si el perfil tiene fotoUrl, la usa:
+    if (perfil.fotoUrl != null && perfil.fotoUrl!.isNotEmpty) {
+      return ClipOval(
+        child: Image.network(
+          perfil.fotoUrl!,
+          fit: BoxFit.cover,
+          width: 70,
+          height: 70,
+          errorBuilder: (_, __, ___) => _avatarIniciales(perfil),
         ),
-        Text(
-          etiqueta,
-          style: AppTextStyles.bodySmall
-              .copyWith(fontSize: 11, color: AppColors.textTertiary),
+      );
+    }
+    return _avatarIniciales(perfil);
+  }
+
+  Widget _avatarIniciales(Perfil perfil) {
+    return Center(
+      child: Text(
+        perfil.iniciales,
+        style: const TextStyle(
+          fontSize: 26,
+          fontWeight: FontWeight.bold,
+          color: AppColors.primaryLight,
         ),
-      ],
+      ),
     );
   }
 
+  // ═══════════════════════════════════════════════════════════
+  // OPCIONES
+  // ═══════════════════════════════════════════════════════════
   Widget _opciones(Perfil perfil, bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Opciones', style: AppTextStyles.titleLarge),
-        const SizedBox(height: 12),
-        _item(
-          isDark,
-          icono: Icons.edit_outlined,
-          titulo: 'Editar perfil',
-          subtitulo: 'Nombre, distrito y notificaciones',
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const EditarPerfilScreen()),
+        Text(
+          'Opciones',
+          style: AppTextStyles.titleLarge.copyWith(
+            color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
           ),
         ),
+        const SizedBox(height: 12),
+
         _item(
           isDark,
           icono: Icons.lock_outline,
@@ -219,7 +373,9 @@ class _PerfilScreenState extends State<PerfilScreen> {
           subtitulo: 'Apariencia de la aplicación',
           onTap: () => Navigator.pushNamed(context, AppRoutes.settings),
         ),
+
         const SizedBox(height: 12),
+
         _item(
           isDark,
           icono: Icons.logout,
@@ -247,46 +403,71 @@ class _PerfilScreenState extends State<PerfilScreen> {
         Color? color,
         required VoidCallback onTap,
       }) {
-    final tono = color ??
-        (isDark ? AppColors.darkTextPrimary : AppColors.textPrimary);
-    return Container(
+    final tituloColor =
+        color ?? (isDark ? AppColors.darkTextPrimary : AppColors.textPrimary);
+
+    return Card(
+      color: isDark ? AppColors.darkSurface : AppColors.surface,
       margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : AppColors.surface,
+      elevation: isDark ? 0 : 1,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
       child: ListTile(
-        leading: Icon(icono, color: color ?? AppColors.primary),
-        title: Text(titulo,
-            style: AppTextStyles.titleMedium
-                .copyWith(fontSize: 14, color: tono)),
+        leading: Icon(icono, color: color ?? AppColors.primaryLight),
+        title: Text(
+          titulo,
+          style: AppTextStyles.titleMedium.copyWith(
+            fontSize: 14,
+            color: tituloColor,
+          ),
+        ),
         subtitle: subtitulo == null
             ? null
-            : Text(subtitulo,
-            style: AppTextStyles.bodySmall.copyWith(fontSize: 11)),
-        trailing: const Icon(Icons.chevron_right, size: 20),
+            : Text(
+          subtitulo,
+          style: AppTextStyles.bodySmall.copyWith(
+            fontSize: 11,
+            color: isDark
+                ? AppColors.darkTextSecondary
+                : AppColors.textSecondary,
+          ),
+        ),
+        trailing: Icon(
+          Icons.chevron_right,
+          size: 20,
+          color: isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
+        ),
         onTap: onTap,
       ),
     );
   }
 
-  // ------------------------------------------------------------ acciones
+  // ═══════════════════════════════════════════════════════════
+  // ACCIONES
+  // ═══════════════════════════════════════════════════════════
 
-  /// Cerrar sesion tiene que vaciar los providers, o la siguiente cuenta que
-  /// entre en este telefono vera por un instante el jardin de la anterior.
   Future<void> _cerrarSesion() async {
     final confirmado = await showDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
         title: const Text('Cerrar sesión'),
         content: const Text('¿Quieres salir de tu cuenta?'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(d, false),
-              child: const Text('Cancelar')),
+            onPressed: () => Navigator.pop(d, false),
+            child: const Text('Cancelar'),
+          ),
           TextButton(
-              onPressed: () => Navigator.pop(d, true),
-              child: const Text('Salir')),
+            onPressed: () => Navigator.pop(d, true),
+            child: const Text(
+              'Salir',
+              style: TextStyle(color: AppColors.error),
+            ),
+          ),
         ],
       ),
     );
@@ -314,6 +495,9 @@ class _PerfilScreenState extends State<PerfilScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
         title: const Text('Cambiar contraseña'),
         content: Form(
           key: formKey,
@@ -325,8 +509,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
                 obscureText: true,
                 decoration:
                 const InputDecoration(labelText: 'Contraseña actual'),
-                validator: (v) =>
-                (v ?? '').isEmpty ? 'Ingrésala' : null,
+                validator: (v) => (v ?? '').isEmpty ? 'Ingrésala' : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -348,8 +531,9 @@ class _PerfilScreenState extends State<PerfilScreen> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(d, false),
-              child: const Text('Cancelar')),
+            onPressed: () => Navigator.pop(d, false),
+            child: const Text('Cancelar'),
+          ),
           TextButton(
             onPressed: () {
               if (formKey.currentState!.validate()) Navigator.pop(d, true);
@@ -384,8 +568,6 @@ class _PerfilScreenState extends State<PerfilScreen> {
     provider.limpiarError();
   }
 
-  /// Se pide escribir ELIMINAR a proposito: es irreversible y borra plantas,
-  /// diagnosticos, actividades e imagenes. Un boton suelto no basta.
   Future<void> _dialogoEliminar() async {
     final ctrl = TextEditingController();
 
@@ -393,6 +575,9 @@ class _PerfilScreenState extends State<PerfilScreen> {
       context: context,
       builder: (d) => StatefulBuilder(
         builder: (context, setStateDialog) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           title: const Text('Eliminar cuenta'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -403,8 +588,10 @@ class _PerfilScreenState extends State<PerfilScreen> {
                     'actividades y las fotos. No se puede deshacer.',
               ),
               const SizedBox(height: 14),
-              const Text('Escribe ELIMINAR para confirmar:',
-                  style: TextStyle(fontSize: 12)),
+              const Text(
+                'Escribe ELIMINAR para confirmar:',
+                style: TextStyle(fontSize: 12),
+              ),
               const SizedBox(height: 6),
               TextField(
                 controller: ctrl,
@@ -416,14 +603,17 @@ class _PerfilScreenState extends State<PerfilScreen> {
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(d, false),
-                child: const Text('Cancelar')),
+              onPressed: () => Navigator.pop(d, false),
+              child: const Text('Cancelar'),
+            ),
             TextButton(
               onPressed: ctrl.text.trim().toUpperCase() == 'ELIMINAR'
                   ? () => Navigator.pop(d, true)
                   : null,
-              child: const Text('Eliminar',
-                  style: TextStyle(color: AppColors.error)),
+              child: const Text(
+                'Eliminar',
+                style: TextStyle(color: AppColors.error),
+              ),
             ),
           ],
         ),
@@ -450,9 +640,16 @@ class _PerfilScreenState extends State<PerfilScreen> {
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
-          content: Text(mensaje),
+          content: Text(
+            mensaje,
+            textAlign: TextAlign.center,
+          ),
           backgroundColor: error ? AppColors.error : AppColors.success,
           behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          margin: const EdgeInsets.all(16),
         ),
       );
   }

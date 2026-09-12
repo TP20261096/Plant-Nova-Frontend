@@ -4,11 +4,12 @@ import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../models/especie.dart';
 
-/// Fila de la lista de la Guia. Reemplaza a PlantGuideCard.
+/// Fila de la lista de la Guia.
 ///
-/// La anterior mostraba un emoji por especie sacado de un switch local. Ahora
-/// se usa imagen_url del backend, con el emoji sustituido por un icono
-/// cuando la especie no tiene foto cargada.
+/// Estructura:
+/// - Imagen a la izquierda (centrada verticalmente, 64x64)
+/// - Todo el contenido a la derecha: nombre + especie + badges + descripcion
+/// - Flechita de navegación al final
 class EspecieCard extends StatelessWidget {
   final Especie especie;
   final VoidCallback onTap;
@@ -26,7 +27,7 @@ class EspecieCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
@@ -39,54 +40,113 @@ class EspecieCard extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(10),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                // Imagen a la izquierda (centrada verticalmente)
                 _imagen(isDark),
                 const SizedBox(width: 12),
+
+                // Todo el contenido a la derecha
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        especie.nombreComun,
-                        style: AppTextStyles.titleMedium.copyWith(
-                          color: isDark
-                              ? AppColors.darkTextPrimary
-                              : AppColors.textPrimary,
-                        ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Nombre + especie
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  especie.nombreComun,
+                                  style: AppTextStyles.titleMedium.copyWith(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark
+                                        ? AppColors.darkTextPrimary
+                                        : AppColors.textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  especie.nombreCientifico,
+                                  style: AppTextStyles.bodySmall.copyWith(
+                                    fontSize: 11,
+                                    fontStyle: FontStyle.italic,
+                                    color: isDark
+                                        ? AppColors.darkTextSecondary
+                                        : AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(width: 6),
+
+                          // Badges arriba a la derecha
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _chip(
+                                    Icons.water_drop_outlined,
+                                    especie.riegoTexto,
+                                    isDark,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  _chip(
+                                    Icons.bar_chart,
+                                    especie.dificultad.etiqueta,
+                                    isDark,
+                                  ),
+                                ],
+                              ),
+                              if (!especie.diagnosticable) ...[
+                                const SizedBox(height: 4),
+                                _chip(
+                                  Icons.no_photography_outlined,
+                                  'Sin diagnóstico',
+                                  isDark,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        especie.nombreCientifico,
-                        style: AppTextStyles.bodySmall.copyWith(
-                          fontStyle: FontStyle.italic,
-                          color: isDark
-                              ? AppColors.darkTextSecondary
-                              : AppColors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
+
+                      const SizedBox(height: 6),
+
+                      // Descripción (2 líneas máx)
                       Text(
                         especie.resumen,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: AppTextStyles.bodySmall.copyWith(
+                          fontSize: 11,
+                          height: 1.3,
                           color: isDark
                               ? AppColors.darkTextSecondary
                               : AppColors.textSecondary,
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      _etiquetas(),
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
+
+                // Flechita de navegación
+                const SizedBox(width: 6),
                 Icon(
                   Icons.chevron_right,
+                  size: 22,
                   color: isDark
                       ? AppColors.darkTextTertiary
                       : AppColors.textTertiary,
@@ -101,57 +161,42 @@ class EspecieCard extends StatelessWidget {
 
   Widget _imagen(bool isDark) {
     return Container(
-      width: 60,
-      height: 60,
+      width: 64,
+      height: 64,
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkPrimaryBg : AppColors.primaryBg,
         borderRadius: BorderRadius.circular(12),
       ),
       clipBehavior: Clip.antiAlias,
       child: especie.imagenUrl == null
-          ? const Icon(Icons.eco, size: 28, color: AppColors.primary)
+          ? const Icon(Icons.eco, size: 30, color: AppColors.primary)
           : Image.network(
         especie.imagenUrl!,
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) =>
-        const Icon(Icons.eco, size: 28, color: AppColors.primary),
+        const Icon(Icons.eco, size: 30, color: AppColors.primary),
       ),
     );
   }
 
-  Widget _etiquetas() {
-    return Wrap(
-      spacing: 6,
-      runSpacing: 4,
-      children: [
-        _chip(Icons.water_drop_outlined, especie.riegoTexto),
-        _chip(Icons.bar_chart, especie.dificultad.etiqueta),
-        // Avisar cuando NO se puede diagnosticar evita que el usuario
-        // registre la planta esperando usar la camara y se frustre despues.
-        if (!especie.diagnosticable)
-          _chip(Icons.no_photography_outlined, 'Sin diagnóstico'),
-      ],
-    );
-  }
-
-  Widget _chip(IconData icono, String texto) {
+  Widget _chip(IconData icono, String texto, bool isDark) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       decoration: BoxDecoration(
-        color: AppColors.primaryBg.withOpacity(0.6),
+        color: isDark ? AppColors.darkPrimaryBg : AppColors.primaryBg,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icono, size: 10, color: AppColors.primary),
-          const SizedBox(width: 3),
+          Icon(icono, size: 9, color: AppColors.primaryLight),
+          const SizedBox(width: 2),
           Text(
             texto,
-            style: const TextStyle(
-              fontSize: 9,
+            style: TextStyle(
+              fontSize: 8,
               fontWeight: FontWeight.w600,
-              color: AppColors.primary,
+              color: isDark ? AppColors.primaryLight : AppColors.primary,
             ),
           ),
         ],

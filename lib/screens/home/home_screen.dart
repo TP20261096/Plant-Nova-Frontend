@@ -1,20 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_text_styles.dart';
-import '../../app/routes.dart';
-import '../../providers/diagnostico_provider.dart';
-import '../../providers/weather_provider.dart';
-import '../../widgets/navigation/custom_bottom_navigation.dart';
-import '../../widgets/home/home_header.dart';
-import '../guide/guia_screen.dart';
-import '../garden/jardin_screen.dart';
-import '../../models/actividad.dart';
 import '../../providers/actividad_provider.dart';
 import '../../providers/planta_provider.dart';
+import '../../providers/weather_provider.dart';
 import '../../widgets/home/actividad_card.dart';
-import '../profile/perfil_screen.dart';
+import '../../widgets/home/home_header.dart';
+import '../../widgets/navigation/custom_bottom_navigation.dart';
+import '../actividades/actividades_dia_screen.dart';
 import '../diagnosis/upload_plant_screen.dart';
+import '../garden/jardin_screen.dart';
+import '../guide/guia_screen.dart';
+import '../profile/perfil_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -26,7 +25,11 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   DateTime _selectedDate = DateTime.now();
+
   final PageController _pageController = PageController(initialPage: 2);
+
+  /// Máximo de actividades visibles en el inicio
+  static const int _maxActividadesInicio = 3;
 
   @override
   void initState() {
@@ -35,14 +38,6 @@ class _HomeScreenState extends State<HomeScreen> {
       context.read<PlantaProvider>().cargar();
       context.read<ActividadProvider>().cargar();
       context.read<WeatherProvider>().loadWeather();
-
-      // Verificar si viene de guardar diagnóstico
-      final args = ModalRoute.of(context)?.settings.arguments;
-      if (args != null && args is Map && args['navigateTo'] == 'garden') {
-        setState(() {
-          _currentIndex = 3; // Índice del jardín en el bottom navigation
-        });
-      }
     });
   }
 
@@ -54,7 +49,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final List<Widget> screens = [
+    final pantallas = [
       _buildHomeContent(context),
       const GuiaScreen(isEmbedded: true),
       const UploadPlantScreen(isEmbedded: true),
@@ -65,97 +60,294 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
-        children: screens,
+        children: pantallas,
       ),
       bottomNavigationBar: CustomBottomNavigation(
         currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
+        onTap: (index) => setState(() => _currentIndex = index),
       ),
     );
   }
 
-  void _onNavigationTap(int index) {
-    setState(() {
-      _currentIndex = index;
-    });
-
-    switch (index) {
-      case 0:
-        break;
-      case 1:
-        Navigator.pushNamed(context, AppRoutes.myPlants);
-        break;
-      case 2:
-      // Limpiar el plantId antes de navegar a analizar
-        context.read<DiagnosticoProvider>().limpiarPlanta();
-        Navigator.pushNamed(context, AppRoutes.uploadPlant);
-        break;
-      case 3:
-        Navigator.pushNamed(context, AppRoutes.history);
-        break;
-      case 4:
-        Navigator.pushNamed(context, AppRoutes.profile);
-        break;
-    }
-  }
-
+  // ═══════════════════════════════════════════════════════════
+  // HOME CONTENT
+  // ═══════════════════════════════════════════════════════════
   Widget _buildHomeContent(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return SafeArea(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const HomeHeader(),
-          _buildDaysSelector(),
-          const SizedBox(height: 2),
-          _buildActivitiesTitle(context),
-          Expanded(
-            child: _buildActivitiesForDate(context),
+      child: RefreshIndicator(
+        onRefresh: () async {
+          await context.read<ActividadProvider>().cargar(silencioso: true);
+          await context.read<WeatherProvider>().loadWeather();
+          await context.read<PlantaProvider>().cargar(silencioso: true);
+        },
+        color: AppColors.primaryLight,
+        child: SingleChildScrollView(
+          // ✅ AlwaysScrollable → siempre se puede scrollear (incluso si el contenido entra)
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. CLIMA
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+                child: _buildWeatherCard(context),
+              ),
+
+              // 2. SALUDO
+              const HomeHeader(),
+
+              // 3. BOX DE ACTIVIDADES
+              Container(
+                margin: const EdgeInsets.fromLTRB(8, 0, 8, 0),
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.darkSurface : Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      alignment: Alignment.center,
+                      child: Text(
+                        _tituloActividades(_selectedDate),
+                        style: AppTextStyles.titleMedium.copyWith(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: isDark
+                              ? AppColors.darkTextPrimary
+                              : AppColors.textPrimary,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    _buildDaysSelector(),
+                    const SizedBox(height: 4),
+                    _buildActivitiesSection(context),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 4),
+
+              // 4. ESTADO DE CULTIVOS
+              _buildPlantStatusSummary(context),
+
+              const SizedBox(height: 4),
+
+              // 5. CONSEJOS
+              _buildQuickTip(),
+
+              // ✅ Espacio al final para que se pueda scrollear hasta el fondo
+              const SizedBox(height: 24),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
+  // ═══════════════════════════════════════════════════════════
+  // SECCIÓN ACTIVIDADES
+  // ═══════════════════════════════════════════════════════════
+  Widget _buildActivitiesSection(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final provider = context.watch<ActividadProvider>();
+    final todas = provider.actividades;
+
+    final visibles = todas.take(_maxActividadesInicio).toList();
+    final hayMas = todas.length > _maxActividadesInicio;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Cargando
+        if (provider.cargando && todas.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(20),
+            child: Center(
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    AppColors.primaryLight,
+                  ),
+                  strokeWidth: 2,
+                ),
+              ),
+            ),
+          )
+        // Vacío
+        else if (todas.isEmpty)
+          _buildEmptyActivities(isDark)
+        // Con actividades
+        else ...[
+            ...visibles.map((actividad) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? const Color(0xFF2A2A2A)
+                        : const Color(0xFFF2F2F2),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isDark
+                          ? const Color(0xFF3A3A3A)
+                          : const Color(0xFFE0E0E0),
+                      width: 1,
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: ActividadCard(actividad: actividad),
+                  ),
+                ),
+              );
+            }),
+            if (hayMas) ...[
+              const SizedBox(height: 6),
+              _buildVerTodasButton(context, todas.length),
+            ],
+          ],
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // BOTÓN "VER TODAS"
+  // ═══════════════════════════════════════════════════════════
+  Widget _buildVerTodasButton(BuildContext context, int total) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return SizedBox(
+      width: double.infinity,
+      height: 40,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ActividadesDiaScreen(fecha: _selectedDate),
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.darkPrimaryBg : AppColors.primaryBg,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: AppColors.primaryLight.withOpacity(0.3),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  'Ver todas',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.primaryLight,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '($total)',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.primaryLight,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                const Icon(
+                  Icons.chevron_right,
+                  size: 16,
+                  color: AppColors.primaryLight,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // SELECTOR DE DÍAS
+  // ═══════════════════════════════════════════════════════════
   Widget _buildDaysSelector() {
     return Container(
-      height: 60,
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      height: 56,
       child: PageView.builder(
         controller: _pageController,
         itemCount: 5,
         onPageChanged: (index) {
-          final fecha = DateTime.now().add(Duration(days: index - 2));
-          setState(() {
-            _selectedDate = fecha;
-          });
-          // El backend decide que hay ese dia; nosotros solo se lo pedimos.
-          context.read<ActividadProvider>().seleccionarFecha(fecha);
+          final date = DateTime.now().add(Duration(days: index - 2));
+          setState(() => _selectedDate = date);
+          context.read<ActividadProvider>().seleccionarFecha(date);
         },
         itemBuilder: (context, index) {
           final date = DateTime.now().add(Duration(days: index - 2));
-          // Antes comparaba index == 2, asi que el recuadro verde se quedaba
-          // siempre en hoy aunque deslizaras a otro dia.
-          final isSelected = _mismoDia(date, _selectedDate);
-          return _buildDayCard(date, isSelected);
+          return _buildDayCard(date);
         },
       ),
     );
   }
 
-  Widget _buildDayCard(DateTime date, bool isSelected) {
+  Widget _buildDayCard(DateTime date) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final now = DateTime.now();
+
+    final isToday = date.day == now.day &&
+        date.month == now.month &&
+        date.year == now.year;
+
+    final isSelected = date.day == _selectedDate.day &&
+        date.month == _selectedDate.month &&
+        date.year == _selectedDate.year;
+
+    final bgColor = isToday
+        ? AppColors.primary
+        : (isDark ? AppColors.darkSurface : AppColors.surface);
+
+    final dayNameColor = isToday
+        ? Colors.white.withOpacity(0.9)
+        : (isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.textSecondary);
+
+    final dayNumberColor = isToday
+        ? Colors.white
+        : (isDark ? AppColors.darkTextPrimary : AppColors.textPrimary);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 3),
       decoration: BoxDecoration(
-        color: isSelected
-            ? AppColors.primary
-            : isDark ? AppColors.darkSurface : AppColors.surface,
+        color: bgColor,
         borderRadius: BorderRadius.circular(10),
+        border: isSelected && !isToday
+            ? Border.all(color: AppColors.primaryLight, width: 2)
+            : null,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
@@ -166,27 +358,22 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             _getDayName(date),
             style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w600,
-              color: isSelected
-                  ? Colors.white
-                  : isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+              color: dayNameColor,
             ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 1),
           Text(
             '${date.day}',
             style: TextStyle(
-              fontSize: 16,
+              fontSize: 15,
               fontWeight: FontWeight.bold,
-              color: isSelected
-                  ? Colors.white
-                  : isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+              color: dayNumberColor,
             ),
           ),
         ],
@@ -194,203 +381,38 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildActivitiesTitle(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final dateString = _formatSelectedDate(_selectedDate);
-
-    return Container(
-      width: double.infinity,
-      height: 40,
-      alignment: Alignment.center,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Text(
-        'Actividades para $dateString',
-        style: AppTextStyles.titleMedium.copyWith(
-          fontSize: 14,
-          color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
-          fontWeight: FontWeight.w600,
-        ),
-        textAlign: TextAlign.center,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-    );
-  }
-
-  Widget _buildActivitiesForDate(BuildContext context) {
-    final provider = context.watch<ActividadProvider>();
-
-    return RefreshIndicator(
-      onRefresh: () => provider.cargar(silencioso: true),
-      child: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        children: [
-          if (provider.cargando)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else if (provider.error != null)
-            _buildActivitiesError(context, provider)
-          else if (provider.actividades.isEmpty)
-              _buildEmptyActivities(context)
-            else
-              ...provider.actividades.map((actividad) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: ActividadCard(
-                    actividad: actividad,
-                    completando: provider.estaCompletando(actividad.id),
-                    onCompletar: () => _completar(actividad),
-                    onRevisar: () => _revisar(actividad),
-                  ),
-                );
-              }),
-          const SizedBox(height: 16),
-          _buildWeatherCard(context),
-          const SizedBox(height: 8),
-          _buildPlantStatusSummary(context),
-          const SizedBox(height: 8),
-          _buildQuickTip(context),
-          const SizedBox(height: 80),
-        ],
-      ),
-    );
-  }
-
-  /// Marca la tarea y refresca el jardin: completar un riego cambia
-  /// ultimo_riego y proximo_riego de la planta.
-  Future<void> _completar(Actividad actividad) async {
-    final provider = context.read<ActividadProvider>();
-    final messenger = ScaffoldMessenger.of(context);
-    final ok = await provider.completar(actividad);
-    if (!mounted) return;
-    if (ok) {
-      context.read<PlantaProvider>().cargar(silencioso: true);
-    } else {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(provider.error ?? 'No se pudo completar la tarea'),
-          backgroundColor: AppColors.error,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      provider.limpiarError();
-    }
-  }
-
-  /// Las actividades de tipo Revision se cierran con una foto nueva, no
-  /// marcandolas a mano.
-  void _revisar(Actividad actividad) {
-    context.read<DiagnosticoProvider>().fijarPlanta(actividad.plantId);
-    Navigator.pushNamed(context, AppRoutes.uploadPlant);
-  }
-
-  Widget _buildActivitiesError(
-      BuildContext context,
-      ActividadProvider provider,
-      ) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      margin: const EdgeInsets.only(bottom: 6),
-      child: Column(
-        children: [
-          const Icon(Icons.cloud_off, color: AppColors.textTertiary),
-          const SizedBox(height: 8),
-          Text(
-            provider.error!,
-            textAlign: TextAlign.center,
-            style: AppTextStyles.bodySmall,
-          ),
-          TextButton(
-            onPressed: () => provider.cargar(),
-            child: const Text('Reintentar'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  bool _mismoDia(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
-
-  Widget _buildEmptyActivities(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Container(
-      height: 70,
-      margin: const EdgeInsets.only(bottom: 6),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.event_available,
-              size: 24,
-              color: AppColors.primaryLight,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'No hay actividades para este día',
-              style: AppTextStyles.bodySmall.copyWith(
-                fontSize: 11,
-                color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
+  // ═══════════════════════════════════════════════════════════
+  // CLIMA
+  // ═══════════════════════════════════════════════════════════
   Widget _buildWeatherCard(BuildContext context) {
     final weatherProvider = context.watch<WeatherProvider>();
     final weather = weatherProvider.weather;
 
-    if (weatherProvider.isLoading) {
+    if (weatherProvider.isLoading && weather == null) {
       return Container(
-        margin: const EdgeInsets.symmetric(horizontal: 8),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Colors.blue.shade400,
-              Colors.blue.shade200,
-            ],
+            colors: [Colors.blue.shade400, Colors.blue.shade200],
           ),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
         ),
-        child: Row(
+        child: const Row(
           children: [
-            const SizedBox(
-              width: 24,
-              height: 24,
+            SizedBox(
+              width: 18,
+              height: 18,
               child: CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                 strokeWidth: 2,
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 10),
             Text(
               'Cargando clima...',
-              style: AppTextStyles.bodyMedium.copyWith(
-                color: Colors.white,
-                fontSize: 14,
-              ),
+              style: TextStyle(color: Colors.white, fontSize: 13),
             ),
           ],
         ),
@@ -399,52 +421,26 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (weather == null) {
       return Container(
-        margin: const EdgeInsets.symmetric(horizontal: 8),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Colors.blue.shade400,
-              Colors.blue.shade200,
-            ],
+            colors: [Colors.blue.shade400, Colors.blue.shade200],
           ),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
         ),
         child: Row(
           children: [
-            const Icon(
-              Icons.cloud_off,
-              color: Colors.white,
-              size: 32,
-            ),
-            const SizedBox(width: 12),
+            const Icon(Icons.cloud_off, color: Colors.white, size: 26),
+            const SizedBox(width: 10),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'No se pudo obtener el clima',
-                    style: AppTextStyles.titleMedium.copyWith(
-                      color: Colors.white,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  GestureDetector(
-                    onTap: () => weatherProvider.loadWeather(),
-                    child: Text(
-                      'Reintentar',
-                      style: AppTextStyles.bodySmall.copyWith(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        decoration: TextDecoration.underline,
-                      ),
-                    ),
-                  ),
-                ],
+              child: GestureDetector(
+                onTap: () => weatherProvider.loadWeather(),
+                child: const Text(
+                  'No se pudo cargar el clima. Toca para reintentar.',
+                  style: TextStyle(color: Colors.white, fontSize: 12),
+                ),
               ),
             ),
           ],
@@ -453,68 +449,65 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 8),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Colors.blue.shade400,
-            Colors.blue.shade200,
-          ],
+          colors: [Colors.blue.shade400, Colors.blue.shade200],
         ),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
             color: Colors.blue.withOpacity(0.2),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
       child: Row(
         children: [
-          // Icono del clima
           Container(
-            width: 50,
-            height: 50,
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.3),
               shape: BoxShape.circle,
             ),
-            child: _getWeatherIcon(weather.icon, size: 28),
+            child: Icon(
+              _getWeatherIcon(weather.icon),
+              color: Colors.white,
+              size: 24,
+            ),
           ),
-          const SizedBox(width: 12),
-
-          // Información principal
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Clima en ${weather.cityName}',
-                  style: AppTextStyles.titleMedium.copyWith(
+                  weather.cityName,
+                  style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 14,
+                    fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 1),
                 Text(
-                  '${weather.description} · ${weather.temperatureCelsius}',
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 13,
+                  '${weather.description} · ${weather.temperature.toStringAsFixed(1)}°C',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.95),
+                    fontSize: 11,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
-
-          const SizedBox(width: 8),
-
-          // Humedad y viento
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -522,34 +515,34 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Icon(
                     Icons.water_drop,
-                    color: Colors.white.withOpacity(0.8),
-                    size: 16,
+                    color: Colors.white.withOpacity(0.9),
+                    size: 12,
                   ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 3),
                   Text(
                     '${weather.humidity}%',
-                    style: AppTextStyles.bodySmall.copyWith(
+                    style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 12,
+                      fontSize: 11,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               Row(
                 children: [
                   Icon(
                     Icons.air,
-                    color: Colors.white.withOpacity(0.8),
-                    size: 16,
+                    color: Colors.white.withOpacity(0.9),
+                    size: 12,
                   ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 3),
                   Text(
-                    '${(weather.windSpeed * 3.6).toStringAsFixed(1)} km/h',
-                    style: AppTextStyles.bodySmall.copyWith(
+                    '${(weather.windSpeed * 3.6).toStringAsFixed(0)} km/h',
+                    style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 12,
+                      fontSize: 11,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -562,53 +555,51 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _getWeatherIcon(String iconCode, {double size = 24}) {
+  IconData _getWeatherIcon(String iconCode) {
     switch (iconCode) {
       case '01d':
-        return Icon(Icons.wb_sunny, color: Colors.white, size: size);
+        return Icons.wb_sunny;
       case '01n':
-        return Icon(Icons.nightlight, color: Colors.white, size: size);
+        return Icons.nightlight;
       case '02d':
       case '02n':
-        return Icon(Icons.wb_cloudy, color: Colors.white, size: size);
+        return Icons.wb_cloudy;
       case '03d':
       case '03n':
       case '04d':
       case '04n':
-        return Icon(Icons.cloud, color: Colors.white, size: size);
+        return Icons.cloud;
       case '09d':
       case '09n':
       case '10d':
       case '10n':
-        return Icon(Icons.water_drop, color: Colors.white, size: size);
+        return Icons.water_drop;
       case '11d':
       case '11n':
-        return Icon(Icons.thunderstorm, color: Colors.white, size: size);
+        return Icons.thunderstorm;
       case '13d':
       case '13n':
-        return Icon(Icons.snowing, color: Colors.white, size: size);
+        return Icons.ac_unit;
       case '50d':
       case '50n':
-        return Icon(Icons.foggy, color: Colors.white, size: size);
+        return Icons.foggy;
       default:
-        return Icon(Icons.wb_sunny, color: Colors.white, size: size);
+        return Icons.wb_sunny;
     }
   }
 
+  // ═══════════════════════════════════════════════════════════
+  // ESTADO DE CULTIVOS
+  // ═══════════════════════════════════════════════════════════
   Widget _buildPlantStatusSummary(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final plantProvider = context.watch<PlantaProvider>();
-    final totalPlants = plantProvider.totalPlantas;
-    final healthyPlants = plantProvider.sanas;
-    // El backend distingue "en tratamiento" de "sin diagnostico"; antes
-    // ambas caian en el mismo saco de "necesita atencion".
-    final attentionPlants = plantProvider.enTratamiento;
+    final plantaProvider = context.watch<PlantaProvider>();
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : AppColors.surface,
+        color: isDark ? AppColors.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -621,56 +612,43 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Estado de tus cultivos',
-                style: AppTextStyles.titleMedium.copyWith(
-                  fontSize: 13,
-                  color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
-                ),
+          Container(
+            width: double.infinity,
+            alignment: Alignment.center,
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Text(
+              'Estado de tus cultivos',
+              style: AppTextStyles.titleMedium.copyWith(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: isDark
+                    ? AppColors.darkTextPrimary
+                    : AppColors.textPrimary,
               ),
-              GestureDetector(
-                onTap: () {
-                  // Iba al indice 1, que es la Guia. El jardin es el 3.
-                  setState(() {
-                    _currentIndex = 3;
-                  });
-                },
-                child: Text(
-                  'Ver todos',
-                  style: AppTextStyles.bodySmall.copyWith(
-                    color: AppColors.primaryLight,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
+              textAlign: TextAlign.center,
+            ),
           ),
-          const SizedBox(height: 8),
           Row(
             children: [
               _buildStatusItem(
                 icon: Icons.eco,
                 color: AppColors.success,
-                label: 'Saludables',
-                value: healthyPlants,
+                label: 'Sanas',
+                value: plantaProvider.sanas,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               _buildStatusItem(
-                icon: Icons.warning,
+                icon: Icons.healing,
                 color: AppColors.warning,
                 label: 'Tratamiento',
-                value: attentionPlants,
+                value: plantaProvider.enTratamiento,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               _buildStatusItem(
-                icon: Icons.local_florist,
-                color: AppColors.primaryLight,
-                label: 'Total',
-                value: totalPlants,
+                icon: Icons.water_drop,
+                color: AppColors.error,
+                label: 'Riego',
+                value: plantaProvider.conRiegoAtrasado,
               ),
             ],
           ),
@@ -687,29 +665,33 @@ class _HomeScreenState extends State<HomeScreen> {
   }) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
           color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(10),
         ),
         child: Column(
           children: [
-            Icon(icon, color: color, size: 18),
-            const SizedBox(height: 2),
+            Icon(icon, color: color, size: 20),
+            const SizedBox(height: 4),
             Text(
               '$value',
               style: TextStyle(
-                fontSize: 14,
+                fontSize: 17,
                 fontWeight: FontWeight.bold,
                 color: color,
               ),
             ),
+            const SizedBox(height: 1),
             Text(
               label,
               style: TextStyle(
-                fontSize: 9,
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
                 color: color,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -717,15 +699,106 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildQuickTip(BuildContext context) {
+  // ═══════════════════════════════════════════════════════════
+  // CONSEJOS
+  // ═══════════════════════════════════════════════════════════
+  Widget _buildQuickTip() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final consejos = [
+      {
+        'icon': Icons.water_drop,
+        'titulo': 'Riego matutino',
+        'texto': 'Riega tus plantas temprano en la mañana para evitar la evaporación.',
+      },
+      {
+        'icon': Icons.wb_sunny,
+        'titulo': 'Luz adecuada',
+        'texto': 'La mayoría de cultivos necesitan 6-8 horas de luz solar directa al día.',
+      },
+      {
+        'icon': Icons.eco,
+        'titulo': 'Abono orgánico',
+        'texto': 'Usa compost o humus de lombriz cada 15 días para fortalecer tus plantas.',
+      },
+      {
+        'icon': Icons.content_cut,
+        'titulo': 'Poda regular',
+        'texto': 'Elimina hojas secas o enfermas para mejorar la circulación de aire.',
+      },
+      {
+        'icon': Icons.bug_report,
+        'titulo': 'Monitoreo',
+        'texto': 'Revisa el envés de las hojas cada 2-3 días para detectar plagas a tiempo.',
+      },
+    ];
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 8),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            alignment: Alignment.center,
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              'Consejos para tus plantas',
+              style: AppTextStyles.titleMedium.copyWith(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: isDark
+                    ? AppColors.darkTextPrimary
+                    : AppColors.textPrimary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          SizedBox(
+            height: 68,
+            child: PageView.builder(
+              controller: PageController(viewportFraction: 0.95),
+              itemCount: consejos.length,
+              itemBuilder: (context, index) {
+                final consejo = consejos[index];
+                return _buildTipCard(
+                  isDark,
+                  icon: consejo['icon'] as IconData,
+                  titulo: consejo['titulo'] as String,
+                  texto: consejo['texto'] as String,
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTipCard(
+      bool isDark, {
+        required IconData icon,
+        required String titulo,
+        required String texto,
+      }) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkPrimaryBg : AppColors.primaryBg,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: AppColors.primaryLight.withOpacity(0.3),
         ),
@@ -739,30 +812,37 @@ class _HomeScreenState extends State<HomeScreen> {
               color: isDark ? AppColors.darkSurface : Colors.white,
               shape: BoxShape.circle,
             ),
-            child: const Icon(
-              Icons.tips_and_updates,
+            child: Icon(
+              icon,
               color: AppColors.warning,
               size: 18,
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  'Consejo del día',
+                  titulo,
                   style: AppTextStyles.titleMedium.copyWith(
                     fontSize: 12,
                     color: AppColors.primaryLight,
+                    fontWeight: FontWeight.w600,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Riega tus plantas temprano en la mañana para evitar la evaporación.',
+                  texto,
                   style: AppTextStyles.bodySmall.copyWith(
-                    fontSize: 10,
-                    color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                    fontSize: 11,
+                    height: 1.2,
+                    color: isDark
+                        ? AppColors.darkTextSecondary
+                        : AppColors.textSecondary,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -775,34 +855,96 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  String _getDayName(DateTime date) {
-    const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-    return days[date.weekday - 1];
+  // ═══════════════════════════════════════════════════════════
+  // EMPTY ACTIVITIES
+  // ═══════════════════════════════════════════════════════════
+  Widget _buildEmptyActivities(bool isDark) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkBackground : AppColors.background,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.event_available,
+            size: 32,
+            color: AppColors.primaryLight,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'No hay actividades para este día',
+            style: AppTextStyles.bodyMedium.copyWith(
+              fontSize: 12,
+              color: isDark
+                  ? AppColors.darkTextPrimary
+                  : AppColors.textPrimary,
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Descansa o adelanta otras tareas',
+            style: AppTextStyles.bodySmall.copyWith(
+              fontSize: 10,
+              color: isDark
+                  ? AppColors.darkTextSecondary
+                  : AppColors.textSecondary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
   }
 
-  String _formatSelectedDate(DateTime date) {
-    final isToday = date.day == DateTime.now().day &&
-        date.month == DateTime.now().month &&
-        date.year == DateTime.now().year;
+  // ═══════════════════════════════════════════════════════════
+  // HELPERS
+  // ═══════════════════════════════════════════════════════════
+  String _tituloActividades(DateTime date) {
+    final now = DateTime.now();
 
-    if (isToday) {
-      return 'hoy';
-    }
+    final isToday = date.day == now.day &&
+        date.month == now.month &&
+        date.year == now.year;
+    if (isToday) return 'Actividades de hoy';
 
-    final isYesterday = date.day == DateTime.now().subtract(const Duration(days: 1)).day &&
-        date.month == DateTime.now().subtract(const Duration(days: 1)).month;
+    final ayer = now.subtract(const Duration(days: 1));
+    final isYesterday = date.day == ayer.day &&
+        date.month == ayer.month &&
+        date.year == ayer.year;
+    if (isYesterday) return 'Actividades de ayer';
 
-    if (isYesterday) {
-      return 'ayer';
-    }
+    final manana = now.add(const Duration(days: 1));
+    final isTomorrow = date.day == manana.day &&
+        date.month == manana.month &&
+        date.year == manana.year;
+    if (isTomorrow) return 'Actividades de mañana';
 
-    final isTomorrow = date.day == DateTime.now().add(const Duration(days: 1)).day &&
-        date.month == DateTime.now().add(const Duration(days: 1)).month;
+    final nombreDia = _getDayNameCompleto(date);
+    return 'Actividades del $nombreDia ${date.day}';
+  }
 
-    if (isTomorrow) {
-      return 'mañana';
-    }
+  String _getDayName(DateTime date) {
+    const dias = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+    return dias[date.weekday - 1];
+  }
 
-    return '${_getDayName(date)} ${date.day}';
+  String _getDayNameCompleto(DateTime date) {
+    const dias = [
+      'lunes',
+      'martes',
+      'miércoles',
+      'jueves',
+      'viernes',
+      'sábado',
+      'domingo',
+    ];
+    return dias[date.weekday - 1];
   }
 }

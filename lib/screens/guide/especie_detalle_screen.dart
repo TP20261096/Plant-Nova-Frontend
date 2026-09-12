@@ -5,18 +5,14 @@ import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../models/especie.dart';
 import '../../providers/guia_provider.dart';
+import '../../widgets/common/animated_tab_bar.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/loading_view.dart';
 
 /// GET /guide/species/{slug}
 ///
-/// Reemplaza a PlantGuideDetailScreen, que tenia cinco pestanas fijas y la
-/// mitad del contenido escrito a mano dentro del widget (los mismos
-/// materiales y pasos para cualquier cultivo).
-///
-/// Aca las pestanas se arman con las secciones que manda el backend, en el
-/// orden en que llegan. Si agregas una seccion en la base de datos, aparece
-/// sola sin tocar codigo.
+/// Fusiona el diseño visual anterior (header con gradiente, tabs animados,
+/// cards por sección) con los datos dinámicos que manda el backend.
 class EspecieDetalleScreen extends StatefulWidget {
   final String slug;
 
@@ -26,7 +22,11 @@ class EspecieDetalleScreen extends StatefulWidget {
   State<EspecieDetalleScreen> createState() => _EspecieDetalleScreenState();
 }
 
-class _EspecieDetalleScreenState extends State<EspecieDetalleScreen> {
+class _EspecieDetalleScreenState extends State<EspecieDetalleScreen>
+    with TickerProviderStateMixin {
+  TabController? _tabController;
+  int _lastLength = 0;
+
   @override
   void initState() {
     super.initState();
@@ -37,8 +37,17 @@ class _EspecieDetalleScreenState extends State<EspecieDetalleScreen> {
 
   @override
   void dispose() {
-    context.read<GuiaProvider>().limpiarDetalle();
+    _tabController?.dispose();
     super.dispose();
+  }
+
+  TabController _controller(int length) {
+    if (_tabController == null || _lastLength != length) {
+      _tabController?.dispose();
+      _tabController = TabController(length: length, vsync: this);
+      _lastLength = length;
+    }
+    return _tabController!;
   }
 
   @override
@@ -49,16 +58,14 @@ class _EspecieDetalleScreenState extends State<EspecieDetalleScreen> {
 
     if (provider.cargandoDetalle) {
       return Scaffold(
-        appBar: AppBar(
-            backgroundColor: Colors.transparent, elevation: 0),
+        appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
         body: const LoadingView(message: 'Cargando ficha...'),
       );
     }
 
     if (provider.errorDetalle != null) {
       return Scaffold(
-        appBar: AppBar(
-            backgroundColor: Colors.transparent, elevation: 0),
+        appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
         body: ErrorView(
           message: provider.errorDetalle!,
           onRetry: () => provider.cargarDetalle(widget.slug),
@@ -68,198 +75,247 @@ class _EspecieDetalleScreenState extends State<EspecieDetalleScreen> {
 
     if (especie == null) {
       return Scaffold(
-        appBar: AppBar(
-            backgroundColor: Colors.transparent, elevation: 0),
+        appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
         body: const SizedBox.shrink(),
       );
     }
 
-    // Si el backend no mandara secciones, un TabBar de longitud 0 revienta.
     final secciones = especie.secciones;
+    final len = secciones.isEmpty ? 1 : secciones.length;
+    final controller = _controller(len);
 
-    return DefaultTabController(
-      length: secciones.isEmpty ? 1 : secciones.length,
-      child: Scaffold(
-        backgroundColor:
-        isDark ? AppColors.darkBackground : AppColors.background,
-        body: NestedScrollView(
-          headerSliverBuilder: (context, _) => [
-            SliverAppBar(
-              expandedHeight: 240,
-              pinned: true,
-              backgroundColor:
-              isDark ? AppColors.darkBackground : AppColors.background,
-              flexibleSpace: FlexibleSpaceBar(
-                title: Text(
-                  especie.nombreComun,
-                  style: const TextStyle(fontSize: 16),
-                ),
-                background: _portada(especie),
-              ),
-            ),
-            SliverToBoxAdapter(child: _cabecera(especie, isDark)),
-            if (secciones.isNotEmpty)
-              SliverPersistentHeader(
-                pinned: true,
-                delegate: _TabBarDelegate(
-                  TabBar(
-                    isScrollable: true,
-                    labelColor: AppColors.primary,
-                    unselectedLabelColor: AppColors.textTertiary,
-                    indicatorColor: AppColors.primary,
-                    tabs: secciones
-                        .map((s) => Tab(
-                      icon: Icon(_icono(s.seccion), size: 18),
-                      text: s.titulo,
-                    ))
-                        .toList(),
-                  ),
-                  isDark ? AppColors.darkBackground : AppColors.background,
-                ),
-              ),
-          ],
-          body: secciones.isEmpty
-              ? Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Text(
-                'Esta especie todavía no tiene información de cultivo.',
-                textAlign: TextAlign.center,
-                style: AppTextStyles.bodyMedium
-                    .copyWith(color: AppColors.textTertiary),
-              ),
-            ),
-          )
-              : TabBarView(
-            children: secciones
-                .map((s) => SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Text(
-                s.contenido,
-                style: AppTextStyles.bodyMedium
-                    .copyWith(height: 1.6),
-              ),
-            ))
-                .toList(),
+    return Scaffold(
+      backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
+      appBar: AppBar(
+        title: Text(
+          especie.nombreComun,
+          style: TextStyle(
+            color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
           ),
         ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: Column(
+        children: [
+          // Header con gradiente
+          _buildHeader(especie, isDark),
+
+          const SizedBox(height: 12),
+
+          // AnimatedTabBar con secciones dinámicas del backend
+          if (secciones.isEmpty)
+            const SizedBox.shrink()
+          else
+            AnimatedTabBar(
+              controller: controller,
+              indicatorColor: AppColors.primaryLight,
+              labelColor: Colors.white,
+              unselectedLabelColor: isDark
+                  ? AppColors.darkTextSecondary
+                  : AppColors.textSecondary,
+              tabs: secciones
+                  .map<AnimatedTab>((s) => AnimatedTab(
+                icon: _icono(s.seccion),
+                label: _labelCorto(s.titulo),
+              ))
+                  .toList(),
+            ),
+
+          const SizedBox(height: 12),
+
+          // Contenido de la sección
+          Expanded(
+            child: secciones.isEmpty
+                ? _buildEmpty()
+                : TabBarView(
+              controller: controller,
+              physics: const NeverScrollableScrollPhysics(),
+              children: secciones
+                  .map<Widget>((s) => _buildContenido(s, isDark))
+                  .toList(),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _portada(EspecieDetalle especie) {
-    if (especie.imagenUrl == null) {
-      return Container(
-        color: AppColors.primaryBg,
-        child: const Center(
-          child: Icon(Icons.eco, size: 72, color: AppColors.primaryLight),
+  // ═══════════════════════════════════════════════════════════
+  // HEADER (gradiente verde con imagen, nombre, badges)
+  // ═══════════════════════════════════════════════════════════
+  Widget _buildHeader(EspecieDetalle especie, bool isDark) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primary,
+            AppColors.primaryLight,
+          ],
         ),
-      );
-    }
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Image.network(
-          especie.imagenUrl!,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => Container(
-            color: AppColors.primaryBg,
-            child: const Center(
-              child: Icon(Icons.eco, size: 72, color: AppColors.primaryLight),
-            ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.25),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
           ),
-        ),
-        // Degradado para que el titulo se lea sobre cualquier foto.
-        const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.center,
-              end: Alignment.bottomCenter,
-              colors: [Colors.transparent, Colors.black54],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _cabecera(EspecieDetalle especie, bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+        ],
+      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Icono o imagen
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(15),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 6,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: especie.imagenUrl == null
+                ? const Icon(Icons.eco, size: 32, color: AppColors.primary)
+                : Image.network(
+              especie.imagenUrl!,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const Icon(
+                Icons.eco,
+                size: 32,
+                color: AppColors.primary,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          // Nombre
+          Text(
+            especie.nombreComun,
+            style: AppTextStyles.headlineLarge.copyWith(
+              color: Colors.white,
+              fontSize: 22,
+            ),
+            textAlign: TextAlign.center,
+          ),
+
+          const SizedBox(height: 2),
+
+          // Nombre científico
           Text(
             especie.nombreCientifico,
-            style: AppTextStyles.bodyMedium.copyWith(
+            style: AppTextStyles.bodySmall.copyWith(
+              color: Colors.white.withOpacity(0.9),
               fontStyle: FontStyle.italic,
-              color: AppColors.textSecondary,
+              fontSize: 11,
             ),
+            textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 12),
+
+          const SizedBox(height: 10),
+
+          // Badges (chips de info)
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: 6,
+            runSpacing: 6,
+            alignment: WrapAlignment.center,
             children: [
-              _dato(Icons.water_drop_outlined, especie.riegoTexto),
-              _dato(Icons.bar_chart, 'Dificultad ${especie.dificultad.etiqueta}'),
+              _badgeHeader(Icons.water_drop_outlined, especie.riegoTexto),
+              _badgeHeader(
+                Icons.bar_chart,
+                'Dificultad ${especie.dificultad.etiqueta}',
+              ),
               if (especie.luzRecomendada != null)
-                _dato(Icons.wb_sunny_outlined, especie.luzRecomendada!),
+                _badgeHeader(Icons.wb_sunny_outlined, especie.luzRecomendada!),
               if (especie.familia != null)
-                _dato(Icons.category_outlined, especie.familia!),
+                _badgeHeader(Icons.category_outlined, especie.familia!),
             ],
           ),
-          const SizedBox(height: 14),
-          Text(especie.resumen,
-              style: AppTextStyles.bodyMedium.copyWith(height: 1.5)),
+
+          const SizedBox(height: 10),
+
+          // Resumen
+          Text(
+            especie.resumen,
+            style: AppTextStyles.bodySmall.copyWith(
+              color: Colors.white.withOpacity(0.9),
+              fontSize: 11,
+              height: 1.3,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
+
+          // Aviso de no diagnosticable
           if (!especie.diagnosticable) ...[
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: AppColors.warning.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.info_outline,
-                      size: 18, color: AppColors.warning),
-                  const SizedBox(width: 10),
-                  Expanded(
+                  Icon(
+                    Icons.info_outline,
+                    size: 14,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
                     child: Text(
-                      'La cámara todavía no reconoce enfermedades de este '
-                          'cultivo. Puedes registrarlo y llevar su riego igual.',
-                      style: AppTextStyles.bodySmall.copyWith(fontSize: 12),
+                      'Sin diagnóstico por cámara aún',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
           ],
-          const SizedBox(height: 8),
         ],
       ),
     );
   }
 
-  Widget _dato(IconData icono, String texto) {
+  Widget _badgeHeader(IconData icono, String texto) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.primaryBg.withOpacity(0.6),
-        borderRadius: BorderRadius.circular(8),
+        color: Colors.white.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.3),
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icono, size: 13, color: AppColors.primary),
-          const SizedBox(width: 5),
+          Icon(icono, size: 12, color: Colors.white),
+          const SizedBox(width: 4),
           Text(
             texto,
             style: const TextStyle(
-              fontSize: 11,
+              color: Colors.white,
+              fontSize: 10,
               fontWeight: FontWeight.w600,
-              color: AppColors.primary,
             ),
           ),
         ],
@@ -267,43 +323,285 @@ class _EspecieDetalleScreenState extends State<EspecieDetalleScreen> {
     );
   }
 
+  // ═══════════════════════════════════════════════════════════
+  // CONTENIDO DE SECCIÓN
+  // ═══════════════════════════════════════════════════════════
+  Widget _buildContenido(SeccionGuia seccion, bool isDark) {
+    final bloques = seccion.contenido
+        .split(RegExp(r'\n\s*\n'))
+        .map<String>((b) => b.trim())
+        .where((String b) => b.isNotEmpty)
+        .toList();
+
+    if (bloques.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Text(
+            'Sin información para esta sección.',
+            textAlign: TextAlign.center,
+            style: AppTextStyles.bodyMedium.copyWith(
+              color: AppColors.textTertiary,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: bloques.asMap().entries.map<Widget>((entry) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _buildBloque(entry.value, isDark, entry.key),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  /// Detecta si un bloque es lista (bullets o numerado) y lo renderiza
+  /// como tal. Si no, lo renderiza como párrafo simple con números
+  /// destacados.
+  Widget _buildBloque(String bloque, bool isDark, int index) {
+    final lineas = bloque
+        .split('\n')
+        .map<String>((l) => l.trim())
+        .where((String l) => l.isNotEmpty)
+        .toList();
+
+    // ¿Es lista? (más de 1 línea y todas empiezan con bullet o número)
+    final esLista = lineas.length > 1 &&
+        lineas.every((l) =>
+        l.startsWith('-') ||
+            l.startsWith('•') ||
+            l.startsWith('*') ||
+            RegExp(r'^\d+[\.\)]').hasMatch(l));
+
+    if (esLista) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurface : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: lineas.map<Widget>((linea) {
+            final numMatch =
+            RegExp(r'^(\d+)[\.\)]\s*(.+)$').firstMatch(linea);
+            if (numMatch != null) {
+              return _itemNumerado(
+                numMatch.group(1)!,
+                numMatch.group(2)!,
+                isDark,
+              );
+            }
+            final texto = linea.replaceFirst(RegExp(r'^[-•*]\s*'), '');
+            return _itemCheck(texto, isDark);
+          }).toList(),
+        ),
+      );
+    }
+
+    // Párrafo simple con números destacados (sin icono)
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: _textoConNumerosDestacados(bloque, isDark),
+    );
+  }
+
+  /// Renderiza el texto con los números (incluyendo rangos) en negrita verde
+  Widget _textoConNumerosDestacados(String texto, bool isDark) {
+    final partes = <TextSpan>[];
+
+    // Regex que detecta:
+    // - Rangos: "10 a 15 días", "10-15 días", "10 a 15 cm"
+    // - Números con unidad: "25 litros", "40 cm", "6 horas"
+    // - Números sueltos: "3", "10"
+    final regex = RegExp(
+      r'(\d+\s*(?:a|-|–)\s*\d+\s*(?:litros?|cm|m|metros?|horas?|días?|semanas?|meses?|%|grados?|°C|kg|g|gramos?|ml|mililitros?|años?))'
+      r'|(\d+\s*(?:litros?|cm|m|metros?|horas?|días?|semanas?|meses?|%|grados?|°C|kg|g|gramos?|ml|mililitros?|años?))'
+      r'|(\b\d+\b)',
+      caseSensitive: false,
+    );
+
+    int lastMatchEnd = 0;
+    for (final match in regex.allMatches(texto)) {
+      if (match.start > lastMatchEnd) {
+        partes.add(TextSpan(
+          text: texto.substring(lastMatchEnd, match.start),
+        ));
+      }
+      partes.add(TextSpan(
+        text: match.group(0),
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          color: AppColors.primary,
+        ),
+      ));
+      lastMatchEnd = match.end;
+    }
+    if (lastMatchEnd < texto.length) {
+      partes.add(TextSpan(text: texto.substring(lastMatchEnd)));
+    }
+
+    return RichText(
+      text: TextSpan(
+        style: AppTextStyles.bodyMedium.copyWith(
+          color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+          fontSize: 13,
+          height: 1.5,
+        ),
+        children: partes,
+      ),
+    );
+  }
+
+  Widget _itemNumerado(String numero, String texto, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 24,
+            height: 24,
+            decoration: const BoxDecoration(
+              color: AppColors.primaryLight,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(
+                numero,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                texto,
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: isDark
+                      ? AppColors.darkTextPrimary
+                      : AppColors.textPrimary,
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _itemCheck(String texto, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 20,
+            height: 20,
+            decoration: BoxDecoration(
+              color: AppColors.success.withOpacity(0.15),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.check,
+              size: 12,
+              color: AppColors.success,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              texto,
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: isDark
+                    ? AppColors.darkTextPrimary
+                    : AppColors.textPrimary,
+                fontSize: 13,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmpty() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Text(
+          'Esta especie todavía no tiene información de cultivo.',
+          textAlign: TextAlign.center,
+          style: AppTextStyles.bodyMedium.copyWith(
+            color: AppColors.textTertiary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // HELPERS
+  // ═══════════════════════════════════════════════════════════
   IconData _icono(String seccion) {
     switch (seccion) {
       case 'Preparacion':
-        return Icons.build_outlined;
+        return Icons.landscape;
       case 'Siembra':
-        return Icons.grass_outlined;
+        return Icons.grass;
       case 'Cuidados':
-        return Icons.favorite_outline;
+        return Icons.favorite;
+      case 'Enfermedades':
+        return Icons.warning;
       case 'Cosecha':
-        return Icons.shopping_basket_outlined;
+        return Icons.agriculture;
       case 'Consejos':
         return Icons.lightbulb_outline;
       default:
         return Icons.article_outlined;
     }
   }
-}
 
-/// Mantiene el TabBar pegado arriba mientras se desplaza el contenido.
-class _TabBarDelegate extends SliverPersistentHeaderDelegate {
-  final TabBar tabBar;
-  final Color fondo;
-
-  _TabBarDelegate(this.tabBar, this.fondo);
-
-  @override
-  double get minExtent => tabBar.preferredSize.height;
-
-  @override
-  double get maxExtent => tabBar.preferredSize.height;
-
-  @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlaps) {
-    return Container(color: fondo, child: tabBar);
+  /// Acorta el título si es muy largo (para que quepa en el tab)
+  String _labelCorto(String titulo) {
+    if (titulo.length <= 12) return titulo;
+    return titulo;
   }
-
-  @override
-  bool shouldRebuild(_TabBarDelegate oldDelegate) =>
-      oldDelegate.tabBar != tabBar || oldDelegate.fondo != fondo;
 }

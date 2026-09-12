@@ -4,13 +4,8 @@ import '../screens/onboarding/onboarding_screen.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/diagnosis/upload_plant_screen.dart';
 import '../screens/diagnosis/analyzing_screen.dart';
-import '../screens/diagnosis/diagnosis_result_screen.dart';
 import '../screens/plants/my_plants_screen.dart';
-import '../screens/plants/plant_detail_screen.dart';
 import '../screens/plants/add_plant_screen.dart';
-import '../screens/history/diagnosis_history_screen.dart';
-import '../screens/treatments/treatments_screen.dart';
-import '../screens/profile/profile_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/diagnosis/diagnostico_resultado_screen.dart';
 import '../screens/auth/login_screen.dart';
@@ -92,13 +87,8 @@ class AppRoutes {
     home: (context) => const HomeScreen(),
     uploadPlant: (context) => const UploadPlantScreen(),
     analyzing: (context) => const AnalyzingScreen(),
-    diagnosisResult: (context) => const DiagnosisResultScreen(),
     myPlants: (context) => const MyPlantsScreen(),
-    plantDetail: (context) => const PlantDetailScreen(),
     addPlant: (context) => const AddPlantScreen(),
-    history: (context) => const DiagnosisHistoryScreen(),
-    treatments: (context) => const TreatmentsScreen(),
-    profile: (context) => const ProfileScreen(),
     settings: (context) => const SettingsScreen(),
   };
 

@@ -21,20 +21,12 @@ class GuiaScreen extends StatefulWidget {
 }
 
 class _GuiaScreenState extends State<GuiaScreen> {
-  final _buscarCtrl = TextEditingController();
-
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<GuiaProvider>().cargar();
     });
-  }
-
-  @override
-  void dispose() {
-    _buscarCtrl.dispose();
-    super.dispose();
   }
 
   void _abrirDetalle(String slug) {
@@ -51,7 +43,9 @@ class _GuiaScreenState extends State<GuiaScreen> {
           return FadeTransition(
             opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
             child: SlideTransition(
-                position: animation.drive(tween), child: child),
+              position: animation.drive(tween),
+              child: child,
+            ),
           );
         },
       ),
@@ -76,9 +70,10 @@ class _GuiaScreenState extends State<GuiaScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Título y subtítulo centrados
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
               child: Column(
                 children: [
                   Text(
@@ -106,38 +101,8 @@ class _GuiaScreenState extends State<GuiaScreen> {
                 ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-              child: TextField(
-                controller: _buscarCtrl,
-                decoration: InputDecoration(
-                  hintText: 'Buscar cultivo',
-                  prefixIcon: const Icon(Icons.search),
-                  isDense: true,
-                  filled: true,
-                  fillColor:
-                  isDark ? AppColors.darkSurface : AppColors.surface,
-                  suffixIcon: _buscarCtrl.text.isEmpty
-                      ? null
-                      : IconButton(
-                    icon: const Icon(Icons.close, size: 18),
-                    onPressed: () {
-                      _buscarCtrl.clear();
-                      provider.buscar('');
-                      setState(() {});
-                    },
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-                onChanged: (texto) {
-                  provider.buscar(texto);
-                  setState(() {}); // solo para mostrar u ocultar la X
-                },
-              ),
-            ),
+
+            // Lista de especies
             Expanded(child: _cuerpo(provider, isDark)),
           ],
         ),
@@ -162,9 +127,7 @@ class _GuiaScreenState extends State<GuiaScreen> {
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Text(
-            provider.busqueda.isEmpty
-                ? 'Todavía no hay guías disponibles.'
-                : 'No encontramos cultivos con ese nombre.',
+            'Todavía no hay guías disponibles.',
             textAlign: TextAlign.center,
             style: AppTextStyles.bodyMedium
                 .copyWith(color: AppColors.textTertiary),

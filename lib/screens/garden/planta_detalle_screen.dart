@@ -4,20 +4,18 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
+import '../../app/routes.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_text_styles.dart';
+import '../../core/utils/time_formatter.dart';
 import '../../models/planta.dart';
-import '../../app/routes.dart';
 import '../../providers/diagnostico_provider.dart';
 import '../../providers/planta_provider.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/loading_view.dart';
 
-/// GET /plants/{id}
-///
-/// Reemplaza a GardenPlantDetailScreen. Recibe solo el id y pide el detalle
-/// al backend en vez de que le pasen un objeto: asi los datos estan frescos
-/// al volver de completar un riego o de un diagnostico nuevo.
+/// Detalle de una planta con el diseño del frontend anterior + datos
+/// del backend actual.
 class PlantaDetalleScreen extends StatefulWidget {
   final String plantaId;
 
@@ -30,7 +28,9 @@ class PlantaDetalleScreen extends StatefulWidget {
 
 class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
   final _picker = ImagePicker();
+  final TextEditingController _nameController = TextEditingController();
   bool _subiendoFoto = false;
+  String _plantName = '';
 
   @override
   void initState() {
@@ -42,7 +42,7 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
 
   @override
   void dispose() {
-    // Sin notifyListeners: el widget ya se esta desmontando.
+    _nameController.dispose();
     context.read<PlantaProvider>().limpiarDetalle();
     super.dispose();
   }
@@ -53,12 +53,31 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
     final provider = context.watch<PlantaProvider>();
     final planta = provider.detalle;
 
+    // Actualiza el nombre local cuando cargue la planta
+    if (planta != null && _plantName.isEmpty) {
+      _plantName = planta.apodo;
+      _nameController.text = planta.apodo;
+    }
+
     return Scaffold(
-      backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
+      backgroundColor:
+      isDark ? AppColors.darkBackground : AppColors.background,
       appBar: AppBar(
-        title: Text(planta?.apodo ?? 'Planta'),
+        title: Text(
+          _plantName.isEmpty ? 'Planta' : _plantName,
+          style: TextStyle(
+            color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+          ),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          if (planta != null)
+            IconButton(
+              icon: const Icon(Icons.edit),
+              onPressed: () => _changeName(planta),
+            ),
+        ],
       ),
       body: _cuerpo(provider, planta, isDark),
     );
@@ -82,216 +101,248 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
 
     if (planta == null) return const SizedBox.shrink();
 
+    final diagnosticos = planta.diagnosticos;
+
     return RefreshIndicator(
       onRefresh: () => provider.cargarDetalle(widget.plantaId),
-      child: ListView(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-        children: [
-          _foto(planta),
-          const SizedBox(height: 16),
-          _cabecera(planta, isDark),
-          const SizedBox(height: 20),
-          _tarjetaRiego(planta, isDark),
-          const SizedBox(height: 16),
-          _datos(planta, isDark),
-          if (planta.riegoNota != null || planta.otrosCuidados != null) ...[
-            const SizedBox(height: 16),
-            _cuidados(planta, isDark),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 1. Header con gradiente + foto + nombre + especie + estado
+            _buildPlantHeader(isDark, planta),
+            const SizedBox(height: 20),
+
+            // 2. Card de riego
+            _tarjetaRiego(planta, isDark),
+            const SizedBox(height: 12),
+
+            // 3. Info del backend (ubicación, etapa, etc.)
+            _datos(planta, isDark),
+
+            // 4. Cuidados (si aplica)
+            if (planta.riegoNota != null || planta.otrosCuidados != null) ...[
+              const SizedBox(height: 12),
+              _cuidados(planta, isDark),
+            ],
+
+            const SizedBox(height: 20),
+
+            // 5. Diagnósticos (sin botón "Nuevo")
+            Text(
+              'Diagnósticos',
+              style: AppTextStyles.titleLarge.copyWith(
+                color: isDark
+                    ? AppColors.darkTextPrimary
+                    : AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Lista de diagnósticos
+            if (diagnosticos.isEmpty)
+              _buildEmptyDiagnoses(isDark)
+            else
+              ...diagnosticos.asMap().entries.map((entry) {
+                return _buildDiagnosisCard(
+                  context,
+                  entry.value,
+                  isDark,
+                  diagnosticNumber: entry.key + 1,
+                );
+              }).toList(),
           ],
-          const SizedBox(height: 20),
-          _historial(planta, isDark),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _foto(PlantaDetalle planta) {
-    return GestureDetector(
-      onTap: _subiendoFoto ? null : _menuFoto,
-      child: Stack(
+  // ═══════════════════════════════════════════════════════════
+  // HEADER (gradiente verde según estado + foto + nombre)
+  // ═══════════════════════════════════════════════════════════
+  Widget _buildPlantHeader(bool isDark, PlantaDetalle planta) {
+    final Color statusColor = planta.estado.color;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            statusColor,
+            statusColor.withOpacity(0.7),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Hero(
-              tag: 'planta_foto_${planta.id}',
-              child: Container(
-                height: 200,
-                width: double.infinity,
-                color: AppColors.primaryBg,
-                child: planta.fotoUrl == null
-                    ? const Center(
-                  child: Icon(Icons.local_florist,
-                      size: 56, color: AppColors.primaryLight),
-                )
-                    : Image.network(
-                  planta.fotoUrl!,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const Center(
-                    child: Icon(Icons.local_florist,
-                        size: 56, color: AppColors.primaryLight),
+          // Foto clickeable (abre el menú para cambiar la foto)
+          GestureDetector(
+            onTap: _subiendoFoto ? null : _menuFoto,
+            child: Stack(
+              children: [
+                Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(15),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.15),
+                        blurRadius: 10,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(15),
+                    child: _buildPlantImageDetail(planta.fotoUrl),
                   ),
                 ),
-              ),
+                // Botón de cámara flotante
+                if (!_subiendoFoto)
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: statusColor,
+                          width: 2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.15),
+                            blurRadius: 4,
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        Icons.camera_alt,
+                        size: 16,
+                        color: statusColor,
+                      ),
+                    ),
+                  ),
+                if (_subiendoFoto)
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black45,
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      child: const Center(
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            valueColor:
+                            AlwaysStoppedAnimation<Color>(Colors.white),
+                            strokeWidth: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
-          if (_subiendoFoto)
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: Colors.black45,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Center(
-                  child: CircularProgressIndicator(color: Colors.white),
-                ),
-              ),
-            )
-          else
-            Positioned(
-              right: 10,
-              bottom: 10,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.55),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.camera_alt_outlined,
-                        size: 14, color: Colors.white),
-                    const SizedBox(width: 5),
-                    Text(
-                      planta.fotoUrl == null ? 'Agregar foto' : 'Cambiar',
-                      style: const TextStyle(
-                          fontSize: 11, color: Colors.white),
-                    ),
-                  ],
-                ),
+
+          const SizedBox(height: 12),
+
+          // Nombre
+          Text(
+            _plantName,
+            style: AppTextStyles.headlineLarge.copyWith(
+              color: Colors.white,
+              fontSize: 22,
+            ),
+            textAlign: TextAlign.center,
+          ),
+
+          const SizedBox(height: 4),
+
+          // Especie
+          Text(
+            planta.especieVisible,
+            style: AppTextStyles.bodySmall.copyWith(
+              color: Colors.white.withOpacity(0.9),
+              fontStyle: FontStyle.italic,
+            ),
+            textAlign: TextAlign.center,
+          ),
+
+          const SizedBox(height: 8),
+
+          // Estado
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 4,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.5),
               ),
             ),
+            child: Text(
+              planta.estado.etiqueta,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  void _menuFoto() {
-    showModalBottomSheet(
-      context: context,
-      builder: (sheet) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.camera_alt_outlined),
-              title: const Text('Tomar foto'),
-              onTap: () {
-                Navigator.pop(sheet);
-                _subirFoto(ImageSource.camera);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Elegir de la galería'),
-              onTap: () {
-                Navigator.pop(sheet);
-                _subirFoto(ImageSource.gallery);
-              },
-            ),
-          ],
+  Widget _buildPlantImageDetail(String? imageUrl) {
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return const Center(
+        child: Icon(
+          Icons.local_florist,
+          color: AppColors.primary,
+          size: 50,
         ),
-      ),
+      );
+    }
+
+    return Image.network(
+      imageUrl,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+      errorBuilder: (context, error, stackTrace) {
+        return const Center(
+          child: Icon(
+            Icons.local_florist,
+            color: AppColors.primary,
+            size: 50,
+          ),
+        );
+      },
     );
   }
 
-  Future<void> _subirFoto(ImageSource origen) async {
-    final XFile? elegida;
-    try {
-      elegida = await _picker.pickImage(
-        source: origen,
-        // El backend reduce a 1024 px igual, pero comprimir aca evita subir
-        // 4 MB por una foto que se va a ver en una tarjeta.
-        imageQuality: 85,
-        maxWidth: 1600,
-      );
-    } catch (_) {
-      if (!mounted) return;
-      _avisar('No se pudo acceder a la cámara o la galería', error: true);
-      return;
-    }
-
-    if (elegida == null || !mounted) return;
-
-    setState(() => _subiendoFoto = true);
-    final provider = context.read<PlantaProvider>();
-    final ok = await provider.cambiarFoto(widget.plantaId, File(elegida.path));
-
-    if (!mounted) return;
-    setState(() => _subiendoFoto = false);
-
-    if (ok) {
-      _avisar('Foto actualizada');
-    } else {
-      _avisar(provider.errorDetalle ?? 'No se pudo subir la foto',
-          error: true);
-      provider.limpiarError();
-    }
-  }
-
-  void _avisar(String mensaje, {bool error = false}) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(mensaje),
-          backgroundColor: error ? AppColors.error : AppColors.success,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-  }
-
-  Widget _cabecera(PlantaDetalle planta, bool isDark) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(planta.apodo, style: AppTextStyles.headlineMedium),
-        const SizedBox(height: 4),
-        Text(
-          planta.especieVisible,
-          style: AppTextStyles.bodyMedium.copyWith(
-            fontStyle: FontStyle.italic,
-            color: AppColors.textSecondary,
-          ),
-        ),
-        const SizedBox(height: 10),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: planta.estado.color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(planta.estado.icono, size: 14, color: planta.estado.color),
-              const SizedBox(width: 6),
-              Text(
-                planta.estado.etiqueta,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: planta.estado.color,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
+  // ═══════════════════════════════════════════════════════════
+  // TARJETA DE RIEGO
+  // ═══════════════════════════════════════════════════════════
   Widget _tarjetaRiego(PlantaDetalle planta, bool isDark) {
     final atrasado = planta.riegoAtrasado;
     final color = atrasado ? AppColors.error : AppColors.info;
@@ -332,14 +383,24 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
     );
   }
 
+  // ═══════════════════════════════════════════════════════════
+  // DATOS (ubicación, etapa, etc.)
+  // ═══════════════════════════════════════════════════════════
   Widget _datos(PlantaDetalle planta, bool isDark) {
     return _tarjeta(
       isDark,
       child: Column(
         children: [
-          _fila(Icons.place_outlined, 'Ubicación',
-              planta.ubicacion.etiqueta),
-          _fila(Icons.timeline_outlined, 'Etapa', planta.etapa.etiqueta),
+          _fila(
+            Icons.place_outlined,
+            'Ubicación',
+            planta.ubicacion.etiqueta,
+          ),
+          _fila(
+            Icons.timeline_outlined,
+            'Etapa',
+            planta.etapa.etiqueta,
+          ),
           _fila(
             Icons.event_outlined,
             'Sembrada',
@@ -359,6 +420,37 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
     );
   }
 
+  Widget _fila(IconData icono, String etiqueta, String valor) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Icon(icono, size: 18, color: AppColors.textTertiary),
+          const SizedBox(width: 12),
+          Text(
+            etiqueta,
+            style: AppTextStyles.bodyMedium
+                .copyWith(color: AppColors.textSecondary),
+          ),
+          const Spacer(),
+          Flexible(
+            child: Text(
+              valor,
+              textAlign: TextAlign.right,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.bodyMedium
+                  .copyWith(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // CUIDADOS
+  // ═══════════════════════════════════════════════════════════
   Widget _cuidados(PlantaDetalle planta, bool isDark) {
     return _tarjeta(
       isDark,
@@ -379,101 +471,46 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
     );
   }
 
-  Widget _historial(PlantaDetalle planta, bool isDark) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Diagnósticos', style: AppTextStyles.titleLarge),
-        const SizedBox(height: 10),
-        if (!planta.tieneDiagnosticos)
-          _tarjeta(
-            isDark,
-            child: Row(
-              children: [
-                const Icon(Icons.camera_alt_outlined,
-                    color: AppColors.textTertiary),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Todavía no le has hecho ningún diagnóstico.',
-                    style: AppTextStyles.bodyMedium
-                        .copyWith(color: AppColors.textSecondary),
-                  ),
-                ),
-              ],
-            ),
-          )
-        else
-          ...planta.diagnosticos.map((d) => InkWell(
-            onTap: () => _abrirDiagnostico(d.id),
-            borderRadius: BorderRadius.circular(14),
-            child: _filaDiagnostico(d, isDark),
-          )),
-      ],
-    );
-  }
-
-  Widget _filaDiagnostico(DiagnosticoResumen d, bool isDark) {
+  // ═══════════════════════════════════════════════════════════
+  // DIAGNÓSTICOS
+  // ═══════════════════════════════════════════════════════════
+  Widget _buildEmptyDiagnoses(bool isDark) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
       ),
-      child: Row(
+      child: Column(
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              width: 48,
-              height: 48,
-              color: AppColors.primaryBg,
-              child: d.imagenUrl == null
-                  ? const Icon(Icons.image_not_supported_outlined,
-                  size: 20, color: AppColors.primaryLight)
-                  : Image.network(
-                d.imagenUrl!,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const Icon(
-                    Icons.image_not_supported_outlined,
-                    size: 20,
-                    color: AppColors.primaryLight),
+          Icon(
+            Icons.health_and_safety,
+            size: 40,
+            color: AppColors.primaryLight,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Aún no hay diagnósticos',
+            style: AppTextStyles.bodyMedium.copyWith(
+              color: isDark
+                  ? AppColors.darkTextSecondary
+                  : AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: _startNewDiagnosis,
+            icon: const Icon(Icons.camera_alt, size: 18),
+            label: const Text('Analizar planta'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryLight,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 10,
               ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  d.nombreEnfermedad,
-                  style: AppTextStyles.titleMedium.copyWith(fontSize: 14),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${_fecha(d.createdAt)} · confianza ${d.confianzaTexto}',
-                  style: AppTextStyles.bodySmall
-                      .copyWith(fontSize: 11, color: AppColors.textTertiary),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: d.estado.color.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              d.estado.etiqueta,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: d.estado.color,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
               ),
             ),
           ),
@@ -482,11 +519,358 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
     );
   }
 
-  /// Abre un diagnostico del historial.
-  ///
-  /// Hay que volver a pedirlo con GET /diagnoses/{id} en vez de reusar lo que
-  /// trae el detalle de la planta: el resumen no incluye sintomas ni
-  /// tratamientos, y los enlaces de imagen caducan en una hora.
+  Widget _buildDiagnosisCard(
+      BuildContext context,
+      DiagnosticoResumen diagnosis,
+      bool isDark, {
+        required int diagnosticNumber,
+      }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _abrirDiagnostico(diagnosis.id),
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: diagnosis.estado.color.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.health_and_safety,
+                        color: diagnosis.estado.color,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _getDiagnosticLabel(diagnosticNumber),
+                            style: AppTextStyles.bodySmall.copyWith(
+                              color: diagnosticNumber == 1
+                                  ? AppColors.primaryLight
+                                  : isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.textSecondary,
+                              fontWeight: diagnosticNumber == 1
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                              fontSize: 11,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            diagnosis.nombreEnfermedad,
+                            style: AppTextStyles.titleMedium.copyWith(
+                              color: isDark
+                                  ? AppColors.darkTextPrimary
+                                  : AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            TimeFormatter.formatRelativeTime(
+                              diagnosis.createdAt,
+                            ),
+                            style: AppTextStyles.bodySmall.copyWith(
+                              color: isDark
+                                  ? AppColors.darkTextTertiary
+                                  : AppColors.textTertiary,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      diagnosis.confianzaTexto,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: diagnosis.estado.color,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Ver diagnóstico completo y tratamientos',
+                  style: AppTextStyles.bodySmall.copyWith(
+                    color: AppColors.primaryLight,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _getDiagnosticLabel(int number) {
+    switch (number) {
+      case 1:
+        return 'Primer diagnóstico';
+      case 2:
+        return 'Segundo diagnóstico';
+      case 3:
+        return 'Tercer diagnóstico';
+      case 4:
+        return 'Cuarto diagnóstico';
+      case 5:
+        return 'Quinto diagnóstico';
+      default:
+        return 'Diagnóstico #$number';
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // ACCIONES
+  // ═══════════════════════════════════════════════════════════
+  void _startNewDiagnosis() {
+    Navigator.pushNamed(
+      context,
+      AppRoutes.uploadPlant,
+      arguments: {'plantId': widget.plantaId},
+    );
+  }
+
+  void _changeName(PlantaDetalle planta) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor:
+          isDark ? AppColors.darkSurface : AppColors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          titlePadding: const EdgeInsets.all(16),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          actionsPadding: const EdgeInsets.all(8),
+          title: Text(
+            'Cambiar nombre',
+            style: AppTextStyles.titleLarge.copyWith(
+              color: isDark
+                  ? AppColors.darkTextPrimary
+                  : AppColors.textPrimary,
+              fontSize: 18,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          content: TextField(
+            controller: _nameController,
+            textAlign: TextAlign.center,
+            autofocus: true,
+            style: TextStyle(
+              color: isDark
+                  ? AppColors.darkTextPrimary
+                  : AppColors.textPrimary,
+              fontSize: 15,
+            ),
+            decoration: InputDecoration(
+              hintText: 'Ej: Mi tomate',
+              hintStyle: TextStyle(
+                color: isDark
+                    ? AppColors.darkTextTertiary
+                    : AppColors.textTertiary,
+                fontSize: 14,
+              ),
+              filled: true,
+              fillColor: isDark
+                  ? AppColors.darkSurfaceVariant
+                  : AppColors.surfaceVariant,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: isDark
+                      ? AppColors.darkBorder
+                      : AppColors.primaryBg,
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(
+                  color: AppColors.primaryLight,
+                  width: 2,
+                ),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
+            ),
+          ),
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text(
+                      'Cancelar',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      if (_nameController.text.trim().isNotEmpty) {
+                        final newName = _nameController.text.trim();
+                        final provider = context.read<PlantaProvider>();
+                        final messenger = ScaffoldMessenger.of(context);
+
+                        // 1) Actualizar apodo en el backend
+                        await provider.actualizar(
+                          widget.plantaId,
+                          {'apodo': newName},
+                        );
+
+                        // 2) Recargar detalle completo para recuperar diagnósticos
+                        await provider.cargarDetalle(widget.plantaId);
+
+                        if (!mounted) return;
+
+                        setState(() {
+                          _plantName = newName;
+                        });
+
+                        Navigator.pop(dialogContext);
+
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: const Text(
+                              'Nombre actualizado correctamente',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontSize: 14),
+                            ),
+                            backgroundColor: AppColors.success,
+                            duration: const Duration(seconds: 2),
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            margin: const EdgeInsets.all(16),
+                          ),
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryLight,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text(
+                      'Guardar',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _menuFoto() {
+    showModalBottomSheet(
+      context: context,
+      builder: (sheet) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('Tomar foto'),
+              onTap: () {
+                Navigator.pop(sheet);
+                _subirFoto(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Elegir de la galería'),
+              onTap: () {
+                Navigator.pop(sheet);
+                _subirFoto(ImageSource.gallery);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _subirFoto(ImageSource origen) async {
+    final XFile? elegida;
+    try {
+      elegida = await _picker.pickImage(
+        source: origen,
+        imageQuality: 85,
+        maxWidth: 1600,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      _avisar('No se pudo acceder a la cámara o la galería', error: true);
+      return;
+    }
+
+    if (elegida == null || !mounted) return;
+
+    setState(() => _subiendoFoto = true);
+    final provider = context.read<PlantaProvider>();
+    final ok = await provider.cambiarFoto(widget.plantaId, File(elegida.path));
+
+    if (!mounted) return;
+    setState(() => _subiendoFoto = false);
+
+    if (ok) {
+      _avisar('Foto actualizada');
+    } else {
+      _avisar(provider.errorDetalle ?? 'No se pudo subir la foto',
+          error: true);
+      provider.limpiarError();
+    }
+  }
+
   Future<void> _abrirDiagnostico(String id) async {
     final provider = context.read<DiagnosticoProvider>();
     final messenger = ScaffoldMessenger.of(context);
@@ -500,12 +884,14 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
     final ok = await provider.cargar(id);
 
     if (!mounted) return;
-    Navigator.pop(context); // cierra el indicador
+    Navigator.pop(context);
 
     if (!ok) {
       messenger.showSnackBar(
         SnackBar(
-          content: Text(provider.error ?? 'No se pudo abrir el diagnóstico'),
+          content: Text(
+            provider.error ?? 'No se pudo abrir el diagnóstico',
+          ),
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
         ),
@@ -517,6 +903,25 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
     Navigator.pushNamed(context, AppRoutes.diagnosticoResultado);
   }
 
+  void _avisar(String mensaje, {bool error = false}) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(mensaje),
+          backgroundColor: error ? AppColors.error : AppColors.success,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // HELPERS
+  // ═══════════════════════════════════════════════════════════
   Widget _tarjeta(bool isDark, {required Widget child}) {
     return Container(
       width: double.infinity,
@@ -526,32 +931,6 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
         borderRadius: BorderRadius.circular(14),
       ),
       child: child,
-    );
-  }
-
-  Widget _fila(IconData icono, String etiqueta, String valor) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Icon(icono, size: 18, color: AppColors.textTertiary),
-          const SizedBox(width: 12),
-          Text(etiqueta,
-              style: AppTextStyles.bodyMedium
-                  .copyWith(color: AppColors.textSecondary)),
-          const Spacer(),
-          Flexible(
-            child: Text(
-              valor,
-              textAlign: TextAlign.right,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.bodyMedium
-                  .copyWith(fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
     );
   }
 

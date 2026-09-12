@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
+/* import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../app/routes.dart';
-import '../../models/diagnosis.dart';
+import '../../models/diagnostico.dart';
 
 class DiagnosisCard extends StatelessWidget {
   final Diagnosis diagnosis;
@@ -128,4 +128,4 @@ class DiagnosisCard extends StatelessWidget {
       return DateFormat('dd/MM/yyyy').format(date);
     }
   }
-}
+}*/

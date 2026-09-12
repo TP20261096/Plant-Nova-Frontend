@@ -3,8 +3,6 @@ import 'package:provider/provider.dart';
 
 import 'app/app.dart';
 import 'providers/auth_provider.dart';
-import 'providers/diagnosis_provider.dart';
-import 'providers/plant_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/weather_provider.dart';
 import 'providers/planta_provider.dart';
@@ -24,8 +22,6 @@ void main() {
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => PlantProvider()),
-        ChangeNotifierProvider(create: (_) => DiagnosisProvider()),
         ChangeNotifierProvider(create: (_) => WeatherProvider()),
         ChangeNotifierProvider(create: (_) => PlantaProvider()),
         ChangeNotifierProvider(create: (_) => GuiaProvider()),
