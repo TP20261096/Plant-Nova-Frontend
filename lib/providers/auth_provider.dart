@@ -54,7 +54,8 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<bool> iniciarSesion(String email, String password) {
-    return _intentar(() => _auth.iniciarSesion(email: email, password: password));
+    return _intentar(
+            () => _auth.iniciarSesion(email: email, password: password));
   }
 
   Future<bool> registrar({

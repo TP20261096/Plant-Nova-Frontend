@@ -60,7 +60,8 @@ class _PlantNovaAppState extends State<PlantNovaApp> {
           navigatorKey: AppRoutes.navigatorKey,
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
-          themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+          themeMode:
+          themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
 
           // Sin esto, showDatePicker y cualquier widget de Material que
           // necesite textos traducidos lanza "No MaterialLocalizations found".

@@ -54,6 +54,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
             content: Text(auth.error ?? 'No se pudo crear la cuenta.'),
             backgroundColor: AppColors.error,
             behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
     }
@@ -68,21 +71,36 @@ class _RegisterScreenState extends State<RegisterScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: false,
         iconTheme: const IconThemeData(color: AppColors.textPrimary),
       ),
       body: SafeArea(
+        top: false,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
+          padding: const EdgeInsets.fromLTRB(28, 8, 28, 32),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Crea tu cuenta', style: AppTextStyles.displayMedium),
-                const SizedBox(height: 8),
-                Text('Empieza a cuidar tu huerto urbano',
-                    style: AppTextStyles.bodyMedium),
-                const SizedBox(height: 32),
+                // ───── Header (centrado) ─────
+                Text(
+                  'Crea tu cuenta',
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.displayMedium,
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Empieza a cuidar tu huerto urbano',
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.bodyMedium?.copyWith(
+                    color: AppColors.textTertiary,
+                  ),
+                ),
+                const SizedBox(height: 40),
+
+                // ───── Campo: Nombre ─────
                 TextFormField(
                   controller: _nombreCtrl,
                   textCapitalization: TextCapitalization.words,
@@ -92,7 +110,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ? 'Ingresa tu nombre'
                       : null,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 18),
+
+                // ───── Campo: Correo ─────
                 TextFormField(
                   controller: _emailCtrl,
                   keyboardType: TextInputType.emailAddress,
@@ -103,18 +123,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     final texto = (v ?? '').trim();
                     if (texto.isEmpty) return 'Ingresa tu correo';
                     if (!texto.contains('@') || !texto.contains('.')) {
-                      return 'Correo no valido';
+                      return 'Correo no válido';
                     }
                     return null;
                   },
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 18),
+
+                // ───── Campo: Contraseña ─────
                 TextFormField(
                   controller: _passCtrl,
                   obscureText: !_verPassword,
                   textInputAction: TextInputAction.next,
                   decoration: _campo(
-                    'Contrasena',
+                    'Contraseña',
                     Icons.lock_outline,
                     sufijo: IconButton(
                       icon: Icon(
@@ -129,48 +151,66 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   validator: (v) {
                     final texto = v ?? '';
-                    if (texto.isEmpty) return 'Ingresa una contrasena';
-                    if (texto.length < 8) return 'Minimo 8 caracteres';
+                    if (texto.isEmpty) return 'Ingresa una contraseña';
+                    if (texto.length < 8) return 'Mínimo 8 caracteres';
                     return null;
                   },
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 18),
+
+                // ───── Campo: Confirmar contraseña ─────
                 TextFormField(
                   controller: _confirmCtrl,
                   obscureText: !_verPassword,
                   textInputAction: TextInputAction.done,
                   onFieldSubmitted: (_) => _registrar(),
-                  decoration:
-                  _campo('Repite la contrasena', Icons.lock_outline),
-                  validator: (v) =>
-                  v != _passCtrl.text ? 'Las contrasenas no coinciden' : null,
+                  decoration: _campo(
+                    'Repite la contraseña',
+                    Icons.lock_outline,
+                  ),
+                  validator: (v) => v != _passCtrl.text
+                      ? 'Las contraseñas no coinciden'
+                      : null,
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 36),
+
+                // ───── Botón principal ─────
                 PrimaryButton(
                   text: 'Crear cuenta',
                   isLoading: cargando,
                   onPressed: _registrar,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
+
+                // ───── Enlace a login ─────
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('Ya tienes cuenta?', style: AppTextStyles.bodyMedium),
+                    Text(
+                      '¿Ya tienes cuenta?',
+                      style: AppTextStyles.bodyMedium,
+                    ),
                     TextButton(
                       onPressed: cargando
                           ? null
                           : () => Navigator.pushReplacementNamed(
                           context, AppRoutes.login),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        minimumSize: const Size(0, 0),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
                       child: const Text(
-                        'Inicia sesion',
+                        'Inicia sesión',
                         style: TextStyle(
                           color: AppColors.primary,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 24),
               ],
             ),
           ),
@@ -179,24 +219,52 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // InputDecoration mejorada
+  // ─────────────────────────────────────────────────────────────
   InputDecoration _campo(String etiqueta, IconData icono, {Widget? sufijo}) {
     return InputDecoration(
       labelText: etiqueta,
-      prefixIcon: Icon(icono, color: AppColors.textTertiary),
+      labelStyle: const TextStyle(
+        color: AppColors.textTertiary,
+        fontSize: 14,
+      ),
+      floatingLabelStyle: const TextStyle(
+        color: AppColors.primary,
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+      ),
+      prefixIcon: Padding(
+        padding: const EdgeInsets.only(left: 4, right: 8),
+        child: Icon(icono, color: AppColors.textTertiary, size: 22),
+      ),
+      prefixIconConstraints: const BoxConstraints(minWidth: 48),
       suffixIcon: sufijo,
       filled: true,
       fillColor: AppColors.surface,
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 18,
+      ),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         borderSide: BorderSide.none,
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: AppColors.primary, width: 1.6),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: AppColors.error, width: 1.4),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: AppColors.error, width: 1.6),
       ),
     );
   }

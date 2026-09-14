@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '/app/theme/app_colors.dart';
 import '/app/routes.dart';
-import '/providers/auth_provider.dart';
-import '/services/onboarding_service.dart';
+import '/app/theme/app_colors.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
@@ -12,66 +9,51 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
 
+  /// Cuánto tiempo se queda visible el splash antes de ir al login.
+  /// Como TikTok / Instagram: corto y visual.
+  static const Duration _duracionSplash = Duration(seconds: 2);
+
   @override
   void initState() {
     super.initState();
+
+    // Animación de entrada (fade + scale)
     _controller = AnimationController(
-      duration: const Duration(seconds: 2),
+      duration: const Duration(milliseconds: 1200),
       vsync: this,
     );
 
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.0, 0.6, curve: Curves.easeIn),
+        curve: Curves.easeIn,
       ),
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.5, end: 1.0).animate(
+    _scaleAnimation = Tween<double>(begin: 0.6, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
+        curve: Curves.easeOutBack,
       ),
     );
 
     _controller.forward();
-    _navigateToNextScreen();
-  }
 
-  /// Tiempo minimo que se ve el splash, para que no parpadee cuando el
-  /// backend responde rapido.
-  static const Duration _minimoEnPantalla = Duration(milliseconds: 1800);
-
-  Future<void> _navigateToNextScreen() async {
-    final inicio = DateTime.now();
-    final auth = context.read<AuthProvider>();
-
-    final hasSeenOnboarding = await OnboardingService().hasSeenOnboarding();
-    // Pregunta al backend si la sesion guardada sigue siendo valida.
-    await auth.comprobarSesion();
-
-    final transcurrido = DateTime.now().difference(inicio);
-    if (transcurrido < _minimoEnPantalla) {
-      await Future.delayed(_minimoEnPantalla - transcurrido);
-    }
-
-    if (!mounted) return;
-
-    final String destino;
-    if (!hasSeenOnboarding) {
-      destino = AppRoutes.onboarding;
-    } else if (auth.autenticado) {
-      destino = AppRoutes.home;
-    } else {
-      destino = AppRoutes.login;
-    }
-
-    Navigator.pushReplacementNamed(context, destino);
+    // Después de 2 segundos, nos vamos directo al Login.
+    Future.delayed(_duracionSplash, () {
+      if (!mounted) return;
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.login,
+            (_) => false,
+      );
+    });
   }
 
   @override
@@ -92,55 +74,43 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Logo o icono de la app
+                // Ícono principal
                 Container(
-                  width: 120,
-                  height: 120,
+                  width: 140,
+                  height: 140,
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(30),
+                    borderRadius: BorderRadius.circular(36),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 10,
-                        offset: const Offset(0, 5),
+                        color: Colors.black.withOpacity(0.15),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
                       ),
                     ],
                   ),
                   child: const Icon(
                     Icons.eco,
-                    size: 60,
+                    size: 72,
                     color: AppColors.primary,
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 28),
                 const Text(
                   'PlantNova',
                   style: TextStyle(
-                    fontSize: 32,
+                    fontSize: 34,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
-                    letterSpacing: 1.2,
+                    letterSpacing: 1.4,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Cuida tus plantas naturalmente',
                   style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.white.withOpacity(0.8),
-                  ),
-                ),
-                const SizedBox(height: 40),
-                // Indicador de carga
-                SizedBox(
-                  width: 30,
-                  height: 30,
-                  child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      Colors.white.withOpacity(0.8),
-                    ),
-                    strokeWidth: 2,
+                    fontSize: 15,
+                    color: Colors.white.withOpacity(0.85),
                   ),
                 ),
               ],

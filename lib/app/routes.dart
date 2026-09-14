@@ -78,7 +78,7 @@ class AppRoutes {
   }
 
   // Rutas con transiciones personalizadas
-  static Map<String, WidgetBuilder> routes = {
+  static final Map<String, WidgetBuilder> routes = {
     splash: (context) => const SplashScreen(),
     onboarding: (context) => const OnboardingScreen(),
     login: (context) => const LoginScreen(),
