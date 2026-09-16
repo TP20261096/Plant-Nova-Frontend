@@ -7,10 +7,6 @@ import '../models/planta.dart';
 import '../services/planta_service.dart';
 
 /// Estado del menu Jardin.
-///
-/// Guarda la lista de plantas y el detalle de la que se esta viendo. No
-/// calcula nada del riego ni del estado: eso lo hace el backend y aca solo
-/// se muestra.
 class PlantaProvider extends ChangeNotifier {
   final PlantaService _service = PlantaService();
 
@@ -31,19 +27,13 @@ class PlantaProvider extends ChangeNotifier {
   bool get cargandoDetalle => _cargandoDetalle;
   String? get errorDetalle => _errorDetalle;
 
-  /// Contadores para las tarjetas de resumen del Jardin.
   int get totalPlantas => _plantas.length;
   int get sanas =>
-      _plantas.where((p) => p.estado.valor == 'Sana').length;
+      _plantas.where((p) => p.estado.valor.toLowerCase() == 'sana').length;
   int get enTratamiento =>
-      _plantas.where((p) => p.estado.valor == 'En_tratamiento').length;
+      _plantas.where((p) => p.estado.valor.toLowerCase() == 'en_tratamiento').length;
   int get conRiegoAtrasado => _plantas.where((p) => p.riegoAtrasado).length;
 
-  /// GET /plants
-  ///
-  /// [silencioso] evita mostrar el spinner cuando es un refresco en segundo
-  /// plano (por ejemplo al volver de completar un riego). La lista se
-  /// reemplaza recien cuando llegan los datos nuevos.
   Future<void> cargar({bool silencioso = false}) async {
     if (!silencioso) {
       _cargando = true;
@@ -64,7 +54,6 @@ class PlantaProvider extends ChangeNotifier {
     }
   }
 
-  /// GET /plants/{id}
   Future<void> cargarDetalle(String id) async {
     _cargandoDetalle = true;
     _errorDetalle = null;
@@ -89,16 +78,10 @@ class PlantaProvider extends ChangeNotifier {
   }
 
   /// POST /plants
-  ///
-  /// Devuelve la planta creada, o null si fallo. La pantalla de resultado de
-  /// diagnostico necesita el id para vincular despues.
   Future<PlantaDetalle?> crear(PlantaForm form, {File? foto}) async {
     try {
       var creada = await _service.crear(form);
 
-      // La foto va en una segunda peticion porque necesita el id. Si falla,
-      // no deshacemos el registro: la planta ya existe y es util sin foto.
-      // El usuario puede volver a intentarlo desde el detalle.
       if (foto != null) {
         try {
           creada = await _service.subirFoto(creada.id, foto);
@@ -107,8 +90,6 @@ class PlantaProvider extends ChangeNotifier {
         }
       }
 
-      // Recargamos en vez de insertar a mano: el backend calcula estado y
-      // riego al crear, y esos valores no los conocemos desde aca.
       await cargar(silencioso: true);
       return creada;
     } on ApiException catch (e) {
@@ -122,10 +103,6 @@ class PlantaProvider extends ChangeNotifier {
     }
   }
 
-  /// PUT /plants/{id}
-  ///
-  /// [cambios] viene de PlantaForm.toJsonParcial(). Si esta vacio no se llama
-  /// al backend: mandar un cuerpo sin campos devuelve 400.
   Future<bool> actualizar(String id, Map<String, dynamic> cambios) async {
     if (cambios.isEmpty) return true;
 
@@ -144,7 +121,6 @@ class PlantaProvider extends ChangeNotifier {
     }
   }
 
-  /// POST /plants/{id}/photo — cambiar la foto de una planta ya registrada.
   Future<bool> cambiarFoto(String id, File imagen) async {
     try {
       _detalle = await _service.subirFoto(id, imagen);
@@ -161,14 +137,11 @@ class PlantaProvider extends ChangeNotifier {
     }
   }
 
-  /// DELETE /plants/{id}
-  ///
-  /// Quitamos la planta de la lista de inmediato para que la pantalla
-  /// responda al toque, y si el backend falla la devolvemos a su sitio.
   Future<bool> eliminar(String id) async {
     final indice = _plantas.indexWhere((p) => p.id == id);
     final respaldo = indice == -1 ? null : _plantas[indice];
 
+    // Optimistic UI update: removemos de la lista inmediatamente
     if (indice != -1) {
       _plantas.removeAt(indice);
       notifyListeners();
@@ -198,8 +171,6 @@ class PlantaProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Al cerrar sesion hay que botar todo: la siguiente cuenta no debe ver
-  /// las plantas de la anterior.
   void limpiar() {
     _plantas = [];
     _detalle = null;

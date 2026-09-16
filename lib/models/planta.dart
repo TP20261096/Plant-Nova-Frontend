@@ -25,6 +25,12 @@ class Planta {
   /// Negativo significa riego atrasado.
   final int diasParaRiego;
 
+  /// Fecha programada para la siguiente aplicación o revisión (si está en tratamiento).
+  final DateTime? proximoTratamiento;
+
+  /// Días restantes calculados directamente por el backend si están disponibles.
+  final int? diasParaTratamientoBackend;
+
   const Planta({
     required this.id,
     required this.apodo,
@@ -37,6 +43,8 @@ class Planta {
     required this.ultimoRiego,
     required this.proximoRiego,
     required this.diasParaRiego,
+    this.proximoTratamiento,
+    this.diasParaTratamientoBackend,
   });
 
   factory Planta.fromJson(Map<String, dynamic> json) {
@@ -52,6 +60,14 @@ class Planta {
       ultimoRiego: Json.fecha(json['ultimo_riego']),
       proximoRiego: Json.fecha(json['proximo_riego']),
       diasParaRiego: Json.entero(json['dias_para_riego']),
+      proximoTratamiento: Json.fecha(
+        json['proximo_tratamiento'] ??
+            json['proxima_aplicacion'] ??
+            json['proxima_dosis'],
+      ),
+      diasParaTratamientoBackend: json['dias_para_tratamiento'] != null
+          ? Json.entero(json['dias_para_tratamiento'])
+          : null,
     );
   }
 
@@ -70,6 +86,40 @@ class Planta {
       return 'Riego atrasado $dias ${dias == 1 ? 'día' : 'días'}';
     }
     return 'Riego en $diasParaRiego ${diasParaRiego == 1 ? 'día' : 'días'}';
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // CÁLCULOS DE TRATAMIENTO
+  // ═══════════════════════════════════════════════════════════
+
+  int? get diasParaTratamiento {
+    if (diasParaTratamientoBackend != null) return diasParaTratamientoBackend;
+    if (proximoTratamiento == null) return null;
+
+    final ahora = DateTime.now();
+    final fechaBase = DateTime(ahora.year, ahora.month, ahora.day);
+    final fechaObj = DateTime(
+      proximoTratamiento!.year,
+      proximoTratamiento!.month,
+      proximoTratamiento!.day,
+    );
+    return fechaObj.difference(fechaBase).inDays;
+  }
+
+  bool get tratamientoAtrasado => (diasParaTratamiento ?? 1) < 0;
+  bool get tratamientoHoy => (diasParaTratamiento ?? 1) == 0;
+
+  /// "Dosis hoy" / "Dosis atrasada 2 días" / "Dosis en 3 días"
+  String get textoTratamiento {
+    final dias = diasParaTratamiento;
+    if (dias == null) return 'Dosis programada';
+    if (dias == 0) return 'Dosis hoy';
+    if (dias < 0) {
+      final diff = dias.abs();
+      return 'Dosis atrasada $diff ${diff == 1 ? 'día' : 'días'}';
+    }
+    if (dias == 1) return 'Dosis en 1 día';
+    return 'Dosis en $dias días';
   }
 }
 
@@ -98,6 +148,8 @@ class PlantaDetalle extends Planta {
     required super.ultimoRiego,
     required super.proximoRiego,
     required super.diasParaRiego,
+    super.proximoTratamiento,
+    super.diasParaTratamientoBackend,
     required this.speciesId,
     required this.fechaSiembra,
     required this.riegoNota,
@@ -119,6 +171,14 @@ class PlantaDetalle extends Planta {
       ultimoRiego: Json.fecha(json['ultimo_riego']),
       proximoRiego: Json.fecha(json['proximo_riego']),
       diasParaRiego: Json.entero(json['dias_para_riego']),
+      proximoTratamiento: Json.fecha(
+        json['proximo_tratamiento'] ??
+            json['proxima_aplicacion'] ??
+            json['proxima_dosis'],
+      ),
+      diasParaTratamientoBackend: json['dias_para_tratamiento'] != null
+          ? Json.entero(json['dias_para_tratamiento'])
+          : null,
       speciesId: Json.textoNulo(json['species_id']),
       fechaSiembra: Json.fecha(json['fecha_siembra']),
       riegoNota: Json.textoNulo(json['riego_nota']),
@@ -137,10 +197,6 @@ class PlantaDetalle extends Planta {
 }
 
 /// Diagnostico resumido dentro del detalle de una planta.
-///
-/// Es una version corta: para ver sintomas, tratamientos e insumos hay que
-/// pedir GET /diagnoses/{id}, que ademas devuelve las imagenes con enlaces
-/// recien firmados.
 class DiagnosticoResumen {
   final String id;
   final String nombreEnfermedad;
@@ -176,19 +232,13 @@ class DiagnosticoResumen {
 }
 
 /// Cuerpo de POST /plants y PUT /plants/{id}.
-///
-/// Existe como clase aparte a proposito: el backend rechaza `estado` y
-/// `riego_frecuencia_dias`, asi que si mandaramos una Planta serializada
-/// entera nos daria 400. Aca solo estan los campos que si se pueden enviar.
-///
-/// `foto_url` NO va aca. La foto se establece unicamente por
-/// POST /plants/{id}/photo; mandarla en este cuerpo devuelve 422.
 class PlantaForm {
   final String apodo;
   final Ubicacion ubicacion;
   final Etapa etapa;
   final String? speciesId;
   final DateTime? fechaSiembra;
+  final DateTime? ultimoRiego;
 
   const PlantaForm({
     required this.apodo,
@@ -196,6 +246,7 @@ class PlantaForm {
     required this.etapa,
     this.speciesId,
     this.fechaSiembra,
+    this.ultimoRiego,
   });
 
   Map<String, dynamic> toJson() => {
@@ -205,11 +256,10 @@ class PlantaForm {
     'species_id': speciesId,
     'fecha_siembra':
     fechaSiembra == null ? null : Json.aFechaApi(fechaSiembra!),
+    'ultimo_riego':
+    ultimoRiego == null ? null : Json.aFechaApi(ultimoRiego!),
   };
 
-  /// PUT acepta campos parciales, asi que enviamos solo lo que cambio.
-  /// Mandar todo funcionaria, pero cambiar `ubicacion` o `species_id` obliga
-  /// al backend a recalcular el riego aunque no los hayas tocado.
   Map<String, dynamic> toJsonParcial(PlantaDetalle original) {
     final cambios = <String, dynamic>{};
     if (apodo.trim() != original.apodo) cambios['apodo'] = apodo.trim();
@@ -228,6 +278,17 @@ class PlantaForm {
       cambios['fecha_siembra'] =
       fechaSiembra == null ? null : Json.aFechaApi(fechaSiembra!);
     }
+
+    final ultimoOriginal = original.ultimoRiego;
+    final cambioUltimo = ultimoRiego == null
+        ? ultimoOriginal != null
+        : ultimoOriginal == null ||
+        Json.aFechaApi(ultimoRiego!) != Json.aFechaApi(ultimoOriginal);
+    if (cambioUltimo) {
+      cambios['ultimo_riego'] =
+      ultimoRiego == null ? null : Json.aFechaApi(ultimoRiego!);
+    }
+
     return cambios;
   }
 }

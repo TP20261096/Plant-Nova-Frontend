@@ -41,8 +41,7 @@ class Diagnostico {
   final String? riegoNota;
   final String? otrosCuidados;
 
-  /// El primero es el plan que el backend programa como actividades.
-  /// Los demas son alternativas informativas.
+  /// Lista cruda de tratamientos disponibles para este diagnóstico.
   final List<Tratamiento> tratamientos;
 
   final List<InsumoComercial> insumosNoCaseros;
@@ -112,19 +111,73 @@ class Diagnostico {
 
   String get confianzaTexto => '${confianza.round()}%';
 
-  /// El tratamiento que el sistema va a programar como actividades.
-  Tratamiento? get tratamientoPrincipal =>
-      tratamientos.isEmpty ? null : tratamientos.first;
+  /// Retorna la receta ideal según la etiología agronómica y urgencia real.
+  Tratamiento? get tratamientoPrincipal {
+    if (tratamientos.isEmpty) return null;
 
-  /// Alternativas informativas, sin programacion automatica.
-  List<Tratamiento> get tratamientosAlternativos =>
-      tratamientos.length <= 1 ? const [] : tratamientos.sublist(1);
+    final clase = top3.isNotEmpty ? top3.first.claseRaw.toLowerCase() : '';
+    final nombre = nombreEnfermedad.toLowerCase();
+    final urg = urgencia.etiqueta.toLowerCase();
+
+    // 1. Virosis por contacto mecánico -> Desinfección de herramientas
+    if (clase.contains('mosaic_virus') || nombre.contains('mosaico')) {
+      return _buscarPorSlug('leche_herramientas');
+    }
+
+    // 2. Virosis o bacterias por vectores voladores -> Trampas amarillas o Jabón potásico
+    if (clase.contains('yellow_leaf_curl') ||
+        clase.contains('greening') ||
+        nombre.contains('rizado amarillo') ||
+        nombre.contains('hlb')) {
+      return _buscarPorSlug('trampas_amarillas') ?? _buscarPorSlug('jabon_potasico');
+    }
+
+    // 3. Plagas de cuerpo blando (ácaros, pulgones) -> Jabón potásico
+    if (clase.contains('spider_mites') ||
+        clase.contains('aphid') ||
+        nombre.contains('ácaros') ||
+        nombre.contains('araña') ||
+        nombre.contains('pulgón')) {
+      return _buscarPorSlug('jabon_potasico');
+    }
+
+    // 4. Infecciones destructivas / alta urgencia -> Caldo bordelés
+    if (urg.contains('alta') ||
+        clase.contains('late_blight') ||
+        clase.contains('black_rot') ||
+        clase.contains('canker') ||
+        nombre.contains('tizón tardío') ||
+        nombre.contains('podredumbre negra') ||
+        nombre.contains('cancro')) {
+      return _buscarPorSlug('caldo_bordeles_casero');
+    }
+
+    // 5. Bacteriosis foliares moderadas -> Extracto de ajo y ají (o caldo bordelés si no existe ajo)
+    if (nombre.contains('bacteriana') && !nombre.contains('pudrición')) {
+      return _buscarPorSlug('ajo_aji') ?? _buscarPorSlug('bicarbonato');
+    }
+
+    // 6. Hongos foliares moderados (tizón temprano, royas, manchas) -> Bicarbonato
+    return _buscarPorSlug('bicarbonato') ?? tratamientos.first;
+  }
+
+  /// Devuelve las recetas restantes excluyendo la seleccionada como principal.
+  List<Tratamiento> get tratamientosAlternativos {
+    final principal = tratamientoPrincipal;
+    if (principal == null) return const [];
+    return tratamientos.where((t) => t != principal).toList();
+  }
+
+  Tratamiento? _buscarPorSlug(String slugBuscado) {
+    for (final t in tratamientos) {
+      if (t.identificadorCoincide(slugBuscado)) {
+        return t;
+      }
+    }
+    return null;
+  }
 
   /// El cultivo detectado no coincide con la especie registrada.
-  ///
-  /// Solo tiene sentido cuando el diagnostico ya pertenece a una planta: si
-  /// todavia no esta vinculado, no hay especie registrada contra la cual
-  /// comparar y el campo no significa nada.
   bool get especieNoCoincide => estaVinculado && !especieConfirmada;
 
   /// true si hay algo que advertirle al usuario antes de que confie en esto.
@@ -133,8 +186,6 @@ class Diagnostico {
 
 /// Una de las tres clases mas probables que devolvio el modelo.
 class Prediccion {
-  /// Etiqueta cruda del modelo, tipo Corn_Corn_Gray_leaf_spot.
-  /// Sirve para depurar; no la muestres al usuario.
   final String claseRaw;
   final String nombreEnfermedad;
   final double confianza;
@@ -158,13 +209,11 @@ class Prediccion {
 
 /// Receta casera con su preparacion y su plan de aplicacion.
 class Tratamiento {
+  final String? recetaSlug;
   final String nombre;
   final String descripcion;
   final List<Ingrediente> ingredientes;
-
-  /// Pasos ya ordenados.
   final List<String> preparacion;
-
   final String modoUso;
   final String? precauciones;
   final String? costoAprox;
@@ -173,6 +222,7 @@ class Tratamiento {
   final String? nota;
 
   const Tratamiento({
+    this.recetaSlug,
     required this.nombre,
     required this.descripcion,
     required this.ingredientes,
@@ -187,6 +237,7 @@ class Tratamiento {
 
   factory Tratamiento.fromJson(Map<String, dynamic> json) {
     return Tratamiento(
+      recetaSlug: Json.textoNulo(json['receta_slug']),
       nombre: Json.texto(json['nombre']),
       descripcion: Json.texto(json['descripcion']),
       ingredientes: Json.lista(json['ingredientes'], Ingrediente.fromJson),
@@ -200,9 +251,35 @@ class Tratamiento {
     );
   }
 
-  /// "3 aplicaciones cada 7 dias"
+  /// Verifica si el tratamiento corresponde al slug solicitado (por campo o por nombre).
+  bool identificadorCoincide(String slugBuscado) {
+    if (recetaSlug != null && recetaSlug!.toLowerCase() == slugBuscado.toLowerCase()) {
+      return true;
+    }
+    final n = nombre.toLowerCase();
+    switch (slugBuscado) {
+      case 'bicarbonato':
+        return n.contains('bicarbonato');
+      case 'caldo_bordeles_casero':
+        return n.contains('bordel') || n.contains('cobre');
+      case 'jabon_potasico':
+        return n.contains('potásico') || n.contains('potasico') || n.contains('jabón');
+      case 'ajo_aji':
+        return n.contains('ajo') || n.contains('ají') || n.contains('aji');
+      case 'leche_herramientas':
+        return n.contains('leche') || n.contains('herramientas') || n.contains('desinfección');
+      case 'trampas_amarillas':
+        return n.contains('trampa') || n.contains('amarilla');
+      default:
+        return false;
+    }
+  }
+
   String get planTexto {
-    if (numAplicaciones == 0 || frecuenciaDias == 0) return '';
+    if (frecuenciaDias == 0) return '';
+    if (numAplicaciones == 0) {
+      return 'Aplicar cada $frecuenciaDias ${frecuenciaDias == 1 ? 'día' : 'días'}';
+    }
     final aplicacion = numAplicaciones == 1 ? 'aplicación' : 'aplicaciones';
     return '$numAplicaciones $aplicacion cada $frecuenciaDias '
         '${frecuenciaDias == 1 ? 'día' : 'días'}';
@@ -223,8 +300,6 @@ class Ingrediente {
   }
 }
 
-/// Producto de tienda, con punto de venta. El backend filtra estos resultados
-/// por el distrito del perfil del usuario.
 class InsumoComercial {
   final String producto;
   final String? presentacion;

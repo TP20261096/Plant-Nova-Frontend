@@ -28,13 +28,11 @@ class ActividadService {
     return Actividad.fromJson(datos);
   }
 
-  /// PATCH /activities/{id}/complete
+  /// PATCH /activities/{id}
   ///
-  /// Marcar un riego actualiza ultimo_riego de la planta y reprograma el
-  /// siguiente. Por eso, despues de completar, hay que recargar el jardin:
-  /// las fechas de riego cambiaron.
-  ///
-  /// Devuelve 409 si ya estaba completada.
-  Future<void> completar(String id) =>
-      _api.patch('/activities/$id/complete');
+  /// Envía el cambio de estado a "Completada" que FastAPI recibe en el endpoint actualizar().
+  Future<void> completar(String id) => _api.patch(
+    '/activities/$id',
+    body: {'estado': 'Completada'},
+  );
 }

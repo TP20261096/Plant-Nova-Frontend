@@ -15,12 +15,16 @@ import '../../widgets/common/error_view.dart';
 import '../../widgets/common/loading_view.dart';
 
 /// Detalle de una planta con el diseño del frontend anterior + datos
-/// del backend actual.
+/// del backend actual, con soporte para enfocar cuidados automáticamente.
 class PlantaDetalleScreen extends StatefulWidget {
   final String plantaId;
+  final bool enfocarCuidados;
 
-  const PlantaDetalleScreen({Key? key, required this.plantaId})
-      : super(key: key);
+  const PlantaDetalleScreen({
+    Key? key,
+    required this.plantaId,
+    this.enfocarCuidados = false,
+  }) : super(key: key);
 
   @override
   State<PlantaDetalleScreen> createState() => _PlantaDetalleScreenState();
@@ -29,20 +33,38 @@ class PlantaDetalleScreen extends StatefulWidget {
 class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
   final _picker = ImagePicker();
   final TextEditingController _nameController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _cuidadosKey = GlobalKey();
+
   bool _subiendoFoto = false;
   String _plantName = '';
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<PlantaProvider>().cargarDetalle(widget.plantaId);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await context.read<PlantaProvider>().cargarDetalle(widget.plantaId);
+
+      // Si viene desde la actividad de tratamiento, hace scroll suave a la sección
+      if (widget.enfocarCuidados && mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final targetContext = _cuidadosKey.currentContext;
+          if (targetContext != null) {
+            Scrollable.ensureVisible(
+              targetContext,
+              duration: const Duration(milliseconds: 600),
+              curve: Curves.easeInOut,
+            );
+          }
+        });
+      }
     });
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _scrollController.dispose();
     context.read<PlantaProvider>().limpiarDetalle();
     super.dispose();
   }
@@ -106,6 +128,7 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
     return RefreshIndicator(
       onRefresh: () => provider.cargarDetalle(widget.plantaId),
       child: SingleChildScrollView(
+        controller: _scrollController,
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -118,18 +141,25 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
             _tarjetaRiego(planta, isDark),
             const SizedBox(height: 12),
 
-            // 3. Info del backend (ubicación, etapa, etc.)
+            // 3. Info del backend (ubicación, etapa, último riego)
             _datos(planta, isDark),
 
-            // 4. Cuidados (si aplica)
-            if (planta.riegoNota != null || planta.otrosCuidados != null) ...[
-              const SizedBox(height: 12),
-              _cuidados(planta, isDark),
-            ],
+            // 4. Cuidados y Tratamiento (con GlobalKey para auto-scroll)
+            Container(
+              key: _cuidadosKey,
+              child: Column(
+                children: [
+                  if (planta.riegoNota != null || planta.otrosCuidados != null) ...[
+                    const SizedBox(height: 12),
+                    _cuidados(planta, isDark),
+                  ],
+                ],
+              ),
+            ),
 
             const SizedBox(height: 20),
 
-            // 5. Diagnósticos (sin botón "Nuevo")
+            // 5. Diagnósticos
             Text(
               'Diagnósticos',
               style: AppTextStyles.titleLarge.copyWith(
@@ -384,7 +414,7 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
   }
 
   // ═══════════════════════════════════════════════════════════
-  // DATOS (ubicación, etapa, etc.)
+  // DATOS (ubicación, etapa, último riego)
   // ═══════════════════════════════════════════════════════════
   Widget _datos(PlantaDetalle planta, bool isDark) {
     return _tarjeta(
@@ -400,13 +430,6 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
             Icons.timeline_outlined,
             'Etapa',
             planta.etapa.etiqueta,
-          ),
-          _fila(
-            Icons.event_outlined,
-            'Sembrada',
-            planta.fechaSiembra == null
-                ? 'Sin especificar'
-                : _fecha(planta.fechaSiembra!),
           ),
           _fila(
             Icons.water_drop_outlined,
@@ -449,21 +472,62 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
   }
 
   // ═══════════════════════════════════════════════════════════
-  // CUIDADOS
+  // CUIDADOS / TRATAMIENTO
   // ═══════════════════════════════════════════════════════════
   Widget _cuidados(PlantaDetalle planta, bool isDark) {
-    return _tarjeta(
-      isDark,
+    final bool highlighted = widget.enfocarCuidados;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: highlighted
+            ? Border.all(color: AppColors.primaryLight, width: 2)
+            : null,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Cuidados', style: AppTextStyles.titleMedium),
+          Row(
+            children: [
+              const Icon(
+                Icons.healing_outlined,
+                size: 20,
+                color: AppColors.primaryLight,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Cuidados y Tratamiento',
+                style: AppTextStyles.titleMedium.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
           if (planta.riegoNota != null) ...[
             const SizedBox(height: 10),
+            Text(
+              'Riego:',
+              style: AppTextStyles.bodySmall.copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppColors.primaryLight,
+              ),
+            ),
+            const SizedBox(height: 2),
             Text(planta.riegoNota!, style: AppTextStyles.bodyMedium),
           ],
           if (planta.otrosCuidados != null) ...[
             const SizedBox(height: 10),
+            Text(
+              'Tratamiento orgánico / Indicaciones:',
+              style: AppTextStyles.bodySmall.copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppColors.primaryLight,
+              ),
+            ),
+            const SizedBox(height: 2),
             Text(planta.otrosCuidados!, style: AppTextStyles.bodyMedium),
           ],
         ],
@@ -753,13 +817,11 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
                         final provider = context.read<PlantaProvider>();
                         final messenger = ScaffoldMessenger.of(context);
 
-                        // 1) Actualizar apodo en el backend
                         await provider.actualizar(
                           widget.plantaId,
                           {'apodo': newName},
                         );
 
-                        // 2) Recargar detalle completo para recuperar diagnósticos
                         await provider.cargarDetalle(widget.plantaId);
 
                         if (!mounted) return;
@@ -865,8 +927,10 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
     if (ok) {
       _avisar('Foto actualizada');
     } else {
-      _avisar(provider.errorDetalle ?? 'No se pudo subir la foto',
-          error: true);
+      _avisar(
+        provider.errorDetalle ?? 'No se pudo subir la foto',
+        error: true,
+      );
       provider.limpiarError();
     }
   }

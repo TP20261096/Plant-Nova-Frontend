@@ -7,7 +7,6 @@ import 'package:flutter/rendering.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_text_styles.dart';
@@ -16,11 +15,6 @@ import '../../providers/auth_provider.dart';
 import '../../providers/perfil_provider.dart';
 import '../../widgets/common/primary_button.dart';
 
-/// PATCH /profile
-///
-/// Guarda nombre, distrito y notificaciones en el backend.
-/// La foto se guarda LOCALMENTE (SharedPreferences) porque el backend
-/// todavia no tiene endpoint para subir archivos.
 class EditarPerfilScreen extends StatefulWidget {
   const EditarPerfilScreen({Key? key}) : super(key: key);
 
@@ -36,10 +30,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   String? _distrito;
   bool _notificaciones = true;
   bool _iniciado = false;
-
-  /// Ruta local de la foto (nueva o existente).
-  /// null = no se tocó, '' = se eliminó, otra cosa = ruta de archivo.
-  String? _fotoPath;
+  File? _nuevaFotoFile;
 
   @override
   void initState() {
@@ -60,37 +51,45 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     await provider.cargarDistritos();
 
     final perfil = provider.perfil;
-
-    // La foto local esta en SharedPreferences
-    final prefs = await SharedPreferences.getInstance();
-    final fotoLocal = prefs.getString('local_profile_photo');
-
     if (!mounted) return;
+
     setState(() {
       if (perfil != null) {
         _nombreCtrl.text = perfil.nombre;
         _distrito = perfil.distrito;
         _notificaciones = perfil.notificaciones;
       }
-      _fotoPath = fotoLocal;
       _iniciado = true;
     });
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // GUARDAR
-  // ═══════════════════════════════════════════════════════════
   Future<void> _guardar() async {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
-
-    // Guardar la foto localmente (no va al backend)
-    await _guardarFotoLocal();
 
     final provider = context.read<PerfilProvider>();
     final perfil = provider.perfil;
     if (perfil == null) return;
 
+    // 1. Si el usuario seleccionó o recortó una nueva foto, se sube al backend
+    if (_nuevaFotoFile != null) {
+      final subidaOk = await provider.cambiarFoto(_nuevaFotoFile!);
+      if (!subidaOk && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              provider.error ?? 'No se pudo subir la foto',
+              textAlign: TextAlign.center,
+            ),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+    }
+
+    // 2. Modificación de campos de texto
     final form = PerfilForm(
       nombre: _nombreCtrl.text.trim() == perfil.nombre
           ? null
@@ -100,54 +99,31 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
       _notificaciones == perfil.notificaciones ? null : _notificaciones,
     );
 
-    if (form.vacio) {
-      Navigator.pop(context, true);
-      return;
-    }
-
-    final ok = await provider.actualizar(form);
-    if (!mounted) return;
-
-    if (ok) {
-      final actualizado = provider.perfil;
-      if (actualizado != null) {
-        context.read<AuthProvider>().actualizarUsuario(actualizado.usuario);
+    if (!form.vacio) {
+      final ok = await provider.actualizar(form);
+      if (!mounted) return;
+      if (!ok) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              provider.error ?? 'No se pudieron guardar los cambios',
+              textAlign: TextAlign.center,
+            ),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
       }
+    }
+
+    final actualizado = provider.perfil;
+    if (actualizado != null && mounted) {
+      context.read<AuthProvider>().actualizarUsuario(actualizado.usuario);
       Navigator.pop(context, true);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            provider.error ?? 'No se pudo guardar',
-            textAlign: TextAlign.center,
-          ),
-          backgroundColor: AppColors.error,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          margin: const EdgeInsets.all(16),
-        ),
-      );
-      provider.limpiarError();
     }
   }
 
-  Future<void> _guardarFotoLocal() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (_fotoPath == null) return; // No se tocó
-
-    if (_fotoPath!.isEmpty) {
-      // Se eliminó la foto
-      await prefs.remove('local_profile_photo');
-    } else {
-      await prefs.setString('local_profile_photo', _fotoPath!);
-    }
-  }
-
-  // ═══════════════════════════════════════════════════════════
-  // FOTO
-  // ═══════════════════════════════════════════════════════════
   Future<void> _elegirFoto() async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -158,9 +134,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isDark ? AppColors.darkSurface : AppColors.surface,
-          borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(20),
-          ),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: SafeArea(
           child: Column(
@@ -178,76 +152,44 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
               Text(
                 'Cambiar foto de perfil',
                 style: AppTextStyles.titleLarge.copyWith(
-                  color: isDark
-                      ? AppColors.darkTextPrimary
-                      : AppColors.textPrimary,
+                  color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 16),
               ListTile(
-                leading: const Icon(
-                  Icons.camera_alt,
-                  color: AppColors.primaryLight,
-                ),
+                leading: const Icon(Icons.camera_alt, color: AppColors.primaryLight),
                 title: Text(
                   'Tomar foto',
                   style: TextStyle(
-                    color: isDark
-                        ? AppColors.darkTextPrimary
-                        : AppColors.textPrimary,
+                    color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
                   ),
                 ),
                 onTap: () async {
                   Navigator.pop(ctx);
                   final XFile? foto = await _picker.pickImage(
                     source: ImageSource.camera,
-                    imageQuality: 90,
+                    imageQuality: 85,
                   );
                   if (foto != null) _abrirEditor(foto.path);
                 },
               ),
               ListTile(
-                leading: const Icon(
-                  Icons.photo_library,
-                  color: AppColors.primaryLight,
-                ),
+                leading: const Icon(Icons.photo_library, color: AppColors.primaryLight),
                 title: Text(
                   'Elegir de galería',
                   style: TextStyle(
-                    color: isDark
-                        ? AppColors.darkTextPrimary
-                        : AppColors.textPrimary,
+                    color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
                   ),
                 ),
                 onTap: () async {
                   Navigator.pop(ctx);
                   final XFile? foto = await _picker.pickImage(
                     source: ImageSource.gallery,
-                    imageQuality: 90,
+                    imageQuality: 85,
                   );
                   if (foto != null) _abrirEditor(foto.path);
                 },
               ),
-              if (_fotoPath != null && _fotoPath!.isNotEmpty)
-                ListTile(
-                  leading: const Icon(
-                    Icons.delete,
-                    color: AppColors.error,
-                  ),
-                  title: Text(
-                    'Eliminar foto',
-                    style: TextStyle(
-                      color: isDark
-                          ? AppColors.darkTextPrimary
-                          : AppColors.textPrimary,
-                    ),
-                  ),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    setState(() => _fotoPath = '');
-                  },
-                ),
-              const SizedBox(height: 8),
             ],
           ),
         ),
@@ -262,24 +204,22 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
         builder: (_) => _ImageEditorScreen(
           imagePath: imagePath,
           onSave: (croppedPath) {
-            setState(() => _fotoPath = croppedPath);
+            setState(() {
+              _nuevaFotoFile = File(croppedPath);
+            });
           },
         ),
       ),
     );
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // BUILD
-  // ═══════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final provider = context.watch<PerfilProvider>();
 
     return Scaffold(
-      backgroundColor:
-      isDark ? AppColors.darkBackground : AppColors.background,
+      backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
       appBar: AppBar(
         title: Text(
           'Editar perfil',
@@ -299,8 +239,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // ── Avatar editable ──
-              _avatarEditable(isDark),
+              _avatarEditable(isDark, provider.perfil),
               const SizedBox(height: 8),
               Center(
                 child: Text(
@@ -313,8 +252,6 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                 ),
               ),
               const SizedBox(height: 28),
-
-              // ── Nombre ──
               TextFormField(
                 controller: _nombreCtrl,
                 textCapitalization: TextCapitalization.words,
@@ -332,16 +269,11 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                     : null,
               ),
               const SizedBox(height: 20),
-
-              // ── Distrito ──
               _selectorDistrito(provider, isDark),
               const SizedBox(height: 20),
-
-              // ── Notificaciones ──
               SwitchListTile(
                 value: _notificaciones,
-                onChanged: (v) =>
-                    setState(() => _notificaciones = v),
+                onChanged: (v) => setState(() => _notificaciones = v),
                 title: Text(
                   'Notificaciones',
                   style: TextStyle(
@@ -363,8 +295,6 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                 activeColor: AppColors.primaryLight,
               ),
               const SizedBox(height: 28),
-
-              // ── Guardar ──
               PrimaryButton(
                 text: 'Guardar cambios',
                 isLoading: provider.guardando,
@@ -377,10 +307,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     );
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // AVATAR EDITABLE
-  // ═══════════════════════════════════════════════════════════
-  Widget _avatarEditable(bool isDark) {
+  Widget _avatarEditable(bool isDark, Perfil? perfil) {
     return Center(
       child: GestureDetector(
         onTap: _elegirFoto,
@@ -390,16 +317,11 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
               width: 120,
               height: 120,
               decoration: BoxDecoration(
-                color: isDark
-                    ? AppColors.darkPrimaryBg
-                    : AppColors.primaryBg,
+                color: isDark ? AppColors.darkPrimaryBg : AppColors.primaryBg,
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: AppColors.primaryLight,
-                  width: 3,
-                ),
+                border: Border.all(color: AppColors.primaryLight, width: 3),
               ),
-              child: _buildAvatarPreview(),
+              child: _buildAvatarPreview(perfil),
             ),
             Positioned(
               bottom: 0,
@@ -415,11 +337,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                     width: 3,
                   ),
                 ),
-                child: const Icon(
-                  Icons.camera_alt,
-                  size: 18,
-                  color: Colors.white,
-                ),
+                child: const Icon(Icons.camera_alt, size: 18, color: Colors.white),
               ),
             ),
           ],
@@ -428,34 +346,34 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     );
   }
 
-  Widget _buildAvatarPreview() {
-    // Si se eliminó la foto
-    if (_fotoPath == '') {
-      return _avatarIniciales();
+  Widget _buildAvatarPreview(Perfil? perfil) {
+    if (_nuevaFotoFile != null) {
+      return ClipOval(
+        child: Image.file(
+          _nuevaFotoFile!,
+          fit: BoxFit.cover,
+          width: 120,
+          height: 120,
+        ),
+      );
     }
 
-    // Si hay foto (nueva o existente)
-    if (_fotoPath != null && _fotoPath!.isNotEmpty) {
-      final file = File(_fotoPath!);
-      if (file.existsSync()) {
-        return ClipOval(
-          child: Image.file(
-            file,
-            fit: BoxFit.cover,
-            width: 120,
-            height: 120,
-            errorBuilder: (_, __, ___) => _avatarIniciales(),
-          ),
-        );
-      }
+    if (perfil?.fotoUrl != null && perfil!.fotoUrl!.isNotEmpty) {
+      return ClipOval(
+        child: Image.network(
+          perfil.fotoUrl!,
+          fit: BoxFit.cover,
+          width: 120,
+          height: 120,
+          errorBuilder: (_, __, ___) => _avatarIniciales(perfil),
+        ),
+      );
     }
 
-    // Fallback: iniciales
-    return _avatarIniciales();
+    return _avatarIniciales(perfil);
   }
 
-  Widget _avatarIniciales() {
-    final perfil = context.read<PerfilProvider>().perfil;
+  Widget _avatarIniciales(Perfil? perfil) {
     return Center(
       child: Text(
         perfil?.iniciales ?? 'U',
@@ -468,9 +386,6 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     );
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // SELECTOR DE DISTRITO
-  // ═══════════════════════════════════════════════════════════
   Widget _selectorDistrito(PerfilProvider provider, bool isDark) {
     final distritos = provider.distritos;
 
@@ -483,11 +398,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
         ),
         child: Row(
           children: [
-            const Icon(
-              Icons.info_outline,
-              size: 18,
-              color: AppColors.warning,
-            ),
+            const Icon(Icons.info_outline, size: 18, color: AppColors.warning),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -506,8 +417,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
         DropdownButtonFormField<String>(
           value: distritos.contains(_distrito) ? _distrito : null,
           isExpanded: true,
-          dropdownColor:
-          isDark ? AppColors.darkSurface : AppColors.surface,
+          dropdownColor: isDark ? AppColors.darkSurface : AppColors.surface,
           style: TextStyle(
             color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
             fontSize: 14,
@@ -517,22 +427,17 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
             prefixIcon: Icon(Icons.place_outlined),
           ),
           hint: const Text('Elige tu distrito'),
-          items: distritos
-              .map((d) => DropdownMenuItem(value: d, child: Text(d)))
-              .toList(),
+          items: distritos.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
           onChanged: (v) => setState(() => _distrito = v),
         ),
         const SizedBox(height: 6),
         Padding(
           padding: const EdgeInsets.only(left: 4),
           child: Text(
-            'Se usa para mostrarte dónde comprar los insumos de los '
-                'tratamientos cerca de ti.',
+            'Se usa para mostrarte dónde comprar los insumos de los tratamientos cerca de ti.',
             style: AppTextStyles.bodySmall.copyWith(
               fontSize: 11,
-              color: isDark
-                  ? AppColors.darkTextTertiary
-                  : AppColors.textTertiary,
+              color: isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
             ),
           ),
         ),
@@ -541,9 +446,9 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
 // EDITOR DE IMAGEN CIRCULAR (zoom + recorte)
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
 
 class _ImageEditorScreen extends StatefulWidget {
   final String imagePath;
@@ -590,8 +495,7 @@ class _ImageEditorScreenState extends State<_ImageEditorScreen> {
       final Uint8List pngBytes = byteData.buffer.asUint8List();
 
       final directory = await getApplicationDocumentsDirectory();
-      final fileName =
-          'perfil_${DateTime.now().millisecondsSinceEpoch}.png';
+      final fileName = 'perfil_${DateTime.now().millisecondsSinceEpoch}.png';
       final file = File('${directory.path}/$fileName');
       await file.writeAsBytes(pngBytes);
 
@@ -602,10 +506,7 @@ class _ImageEditorScreenState extends State<_ImageEditorScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Error: $e',
-              textAlign: TextAlign.center,
-            ),
+            content: Text('Error: $e', textAlign: TextAlign.center),
             backgroundColor: AppColors.error,
             behavior: SnackBarBehavior.floating,
           ),
@@ -631,10 +532,7 @@ class _ImageEditorScreenState extends State<_ImageEditorScreen> {
           icon: const Icon(Icons.close),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Ajustar foto',
-          style: TextStyle(color: Colors.white),
-        ),
+        title: const Text('Ajustar foto', style: TextStyle(color: Colors.white)),
         actions: [
           TextButton(
             onPressed: _isSaving ? null : _saveEditedImage,
@@ -643,9 +541,7 @@ class _ImageEditorScreenState extends State<_ImageEditorScreen> {
               width: 20,
               height: 20,
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  AppColors.primaryLight,
-                ),
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryLight),
                 strokeWidth: 2,
               ),
             )
@@ -672,7 +568,6 @@ class _ImageEditorScreenState extends State<_ImageEditorScreen> {
           Expanded(
             child: Stack(
               children: [
-                // Imagen de fondo con opacidad (para ver los bordes)
                 Positioned.fill(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
@@ -681,13 +576,11 @@ class _ImageEditorScreenState extends State<_ImageEditorScreen> {
                       child: Image.file(
                         File(widget.imagePath),
                         fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) =>
-                        const SizedBox.shrink(),
+                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                       ),
                     ),
                   ),
                 ),
-                // Círculo con la imagen recortada
                 Center(
                   child: SizedBox(
                     width: cropSize,
@@ -722,7 +615,6 @@ class _ImageEditorScreenState extends State<_ImageEditorScreen> {
                     ),
                   ),
                 ),
-                // Borde blanco
                 Center(
                   child: IgnorePointer(
                     child: Container(
@@ -730,10 +622,7 @@ class _ImageEditorScreenState extends State<_ImageEditorScreen> {
                       height: cropSize,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.white,
-                          width: 3,
-                        ),
+                        border: Border.all(color: Colors.white, width: 3),
                       ),
                     ),
                   ),

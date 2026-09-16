@@ -5,10 +5,6 @@ import '../models/actividad.dart';
 import '../services/actividad_service.dart';
 
 /// Estado del menu Inicio.
-///
-/// Reemplaza a PlantProvider.generateActivitiesForDate(), que inventaba las
-/// tareas en el cliente con aritmetica de modulos sobre la fecha del
-/// diagnostico. Ahora las programa el backend y aca solo se listan.
 class ActividadProvider extends ChangeNotifier {
   final ActividadService _service = ActividadService();
 
@@ -17,8 +13,6 @@ class ActividadProvider extends ChangeNotifier {
   bool _cargando = false;
   String? _error;
 
-  /// Ids que se estan marcando ahora mismo, para deshabilitar su boton y
-  /// evitar dobles toques que terminarian en un 409.
   final Set<String> _completando = {};
 
   DateTime get fecha => _fecha;
@@ -39,15 +33,10 @@ class ActividadProvider extends ChangeNotifier {
         _fecha.day == hoy.day;
   }
 
-  /// Cambia el dia y recarga. Si es el mismo dia no hace nada.
-  Future<void> seleccionarFecha(DateTime fecha) async {
-    if (fecha.year == _fecha.year &&
-        fecha.month == _fecha.month &&
-        fecha.day == _fecha.day) {
-      return;
-    }
+  /// Cambia el dia y recarga. Si es el mismo dia, fuerza la recarga igualmente.
+  Future<void> seleccionarFecha(DateTime fecha, {bool silencioso = false}) async {
     _fecha = fecha;
-    await cargar();
+    await cargar(silencioso: silencioso);
   }
 
   /// GET /activities?fecha=
@@ -74,12 +63,6 @@ class ActividadProvider extends ChangeNotifier {
   }
 
   /// PATCH /activities/{id}/complete
-  ///
-  /// Devuelve true si se marco. Recarga la lista despues, porque completar un
-  /// riego reprograma el siguiente y puede cambiar lo que se muestra.
-  ///
-  /// Quien llame a esto tambien deberia recargar el jardin: las fechas de
-  /// riego de la planta cambiaron.
   Future<bool> completar(Actividad actividad) async {
     final id = actividad.id;
     if (id == null || !actividad.sePuedeCompletar) return false;
@@ -93,8 +76,6 @@ class ActividadProvider extends ChangeNotifier {
       await cargar(silencioso: true);
       return true;
     } on ApiException catch (e) {
-      // 409 significa que ya estaba completada, normalmente por un doble
-      // toque o por otra sesion. No es un fallo real: recargamos y listo.
       if (e.conflicto) {
         await cargar(silencioso: true);
         return true;

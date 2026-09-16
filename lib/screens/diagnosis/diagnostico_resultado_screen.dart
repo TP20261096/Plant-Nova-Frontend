@@ -1,25 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../app/routes.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_text_styles.dart';
-import '../../app/routes.dart';
 import '../../models/diagnostico.dart';
+import '../../models/enums.dart';
 import '../../models/planta.dart';
 import '../../providers/actividad_provider.dart';
 import '../../providers/diagnostico_provider.dart';
+import '../../providers/perfil_provider.dart';
 import '../../providers/planta_provider.dart';
 import '../../widgets/common/animated_tab_bar.dart';
 import '../../widgets/common/primary_button.dart';
-import '../plants/registrar_planta_screen.dart';
 
-/// Resultado de POST /diagnose.
-///
-/// Tabs:
-/// - Info: qué es + síntomas + causas
-/// - Tratamiento: recetas con ingredientes y preparación
-/// - Prevención
-/// - Cuidados: riego y otros cuidados
+class _ResultadoModalGuardar {
+  final String plantaId;
+  final String? apodoExistente;
+
+  _ResultadoModalGuardar({required this.plantaId, this.apodoExistente});
+}
+
 class DiagnosticoResultadoScreen extends StatefulWidget {
   const DiagnosticoResultadoScreen({Key? key}) : super(key: key);
 
@@ -37,6 +38,15 @@ class _DiagnosticoResultadoScreenState
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final args =
+      ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      final tabInicial = args?['tabInicial'] as int? ?? 0;
+      if (tabInicial > 0 && tabInicial < _tabController.length) {
+        _tabController.animateTo(tabInicial);
+      }
+    });
   }
 
   @override
@@ -67,12 +77,8 @@ class _DiagnosticoResultadoScreenState
       ),
       body: Column(
         children: [
-          // Sección superior compacta
           _buildTopSection(d, isDark),
-
           const SizedBox(height: 10),
-
-          // Tabs
           AnimatedTabBar(
             controller: _tabController,
             indicatorColor: AppColors.primaryLight,
@@ -87,14 +93,10 @@ class _DiagnosticoResultadoScreenState
               AnimatedTab(icon: Icons.favorite, label: 'Cuidados'),
             ],
           ),
-
           const SizedBox(height: 10),
-
-          // Contenido del tab
           Expanded(
             child: TabBarView(
               controller: _tabController,
-              physics: const NeverScrollableScrollPhysics(),
               children: [
                 _buildInfoTab(d, isDark),
                 _buildTratamientoTab(d, isDark),
@@ -103,49 +105,41 @@ class _DiagnosticoResultadoScreenState
               ],
             ),
           ),
-
-          // Acción fija abajo
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.darkBackground : AppColors.background,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
-                  blurRadius: 8,
-                  offset: const Offset(0, -2),
-                ),
-              ],
+          if (!d.estaVinculado)
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkBackground : AppColors.background,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: _accion(context, d, provider),
             ),
-            child: _accion(context, d, provider),
-          ),
         ],
       ),
     );
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // SECCIÓN SUPERIOR COMPACTA
-  // ═══════════════════════════════════════════════════════════
   Widget _buildTopSection(Diagnostico d, bool isDark) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Fila: imagen + (card + aviso) con misma altura
           IntrinsicHeight(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Imagen que se estira a la altura del card
                 SizedBox(
                   width: 130,
                   child: _ImagenCompacta(diagnostico: d),
                 ),
                 const SizedBox(width: 10),
-
-                // Columna derecha: card + aviso (pegados)
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -161,9 +155,7 @@ class _DiagnosticoResultadoScreenState
               ],
             ),
           ),
-
-          // Top 3 al final
-          if (d.confianzaBaja && d.top3.length > 1) ...[
+          if (d.top3.isNotEmpty) ...[
             const SizedBox(height: 8),
             _top3Compacto(d, isDark),
           ],
@@ -172,9 +164,6 @@ class _DiagnosticoResultadoScreenState
     );
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // TAB 1: INFO (qué es + síntomas + causas)
-  // ═══════════════════════════════════════════════════════════
   Widget _buildInfoTab(Diagnostico d, bool isDark) {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -182,52 +171,32 @@ class _DiagnosticoResultadoScreenState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (d.descripcion.isNotEmpty) ...[
-            _bloqueTexto(
-              'Qué es',
-              d.descripcion,
-              Icons.info_outline,
-              isDark,
-            ),
+            _bloqueTexto('Qué es', d.descripcion, Icons.info_outline, isDark),
             const SizedBox(height: 10),
           ],
           if (d.sintomas.isNotEmpty) ...[
-            _bloqueTexto(
-              'Síntomas',
-              d.sintomas,
-              Icons.visibility_outlined,
-              isDark,
-            ),
+            _bloqueTexto('Síntomas', d.sintomas, Icons.visibility_outlined, isDark),
             const SizedBox(height: 10),
           ],
           if (d.causas.isNotEmpty)
-            _bloqueTexto(
-              'Causas',
-              d.causas,
-              Icons.help_outline,
-              isDark,
-            ),
-          if (d.descripcion.isEmpty &&
-              d.sintomas.isEmpty &&
-              d.causas.isEmpty)
+            _bloqueTexto('Causas', d.causas, Icons.help_outline, isDark),
+          if (d.descripcion.isEmpty && d.sintomas.isEmpty && d.causas.isEmpty)
             _bloqueVacio('No hay información registrada', isDark),
         ],
       ),
     );
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // TAB 2: TRATAMIENTO
-  // ═══════════════════════════════════════════════════════════
   Widget _buildTratamientoTab(Diagnostico d, bool isDark) {
     if (d.estaSana || d.tratamientos.isEmpty) {
       return SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        child: _bloqueVacio(
-          'Esta planta no requiere tratamiento',
-          isDark,
-        ),
+        child: _bloqueVacio('Esta planta no requiere tratamiento', isDark),
       );
     }
+
+    final ideal = d.tratamientoPrincipal!;
+    final alternativos = d.tratamientosAlternativos;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -235,32 +204,25 @@ class _DiagnosticoResultadoScreenState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _TratamientoCard(
-            tratamiento: d.tratamientoPrincipal!,
+            tratamiento: ideal,
             principal: true,
             vinculado: d.estaVinculado,
           ),
-          if (d.tratamientosAlternativos.isNotEmpty) ...[
+          if (alternativos.isNotEmpty) ...[
             const SizedBox(height: 6),
             Row(
               children: [
-                const Icon(
-                  Icons.alt_route,
-                  size: 16,
-                  color: AppColors.primary,
-                ),
+                const Icon(Icons.alt_route, size: 16, color: AppColors.primary),
                 const SizedBox(width: 6),
                 Text(
-                  'Alternativas',
+                  'Otras alternativas registradas',
                   style: AppTextStyles.titleMedium.copyWith(fontSize: 13),
                 ),
               ],
             ),
             const SizedBox(height: 8),
-            ...d.tratamientosAlternativos.map(
-                  (t) => _TratamientoCard(
-                tratamiento: t,
-                principal: false,
-              ),
+            ...alternativos.map(
+                  (t) => _TratamientoCard(tratamiento: t, principal: false),
             ),
           ],
           if (d.insumosNoCaseros.isNotEmpty) ...[
@@ -272,26 +234,15 @@ class _DiagnosticoResultadoScreenState
     );
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // TAB 3: PREVENCIÓN
-  // ═══════════════════════════════════════════════════════════
   Widget _buildPrevencionTab(Diagnostico d, bool isDark) {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: d.prevencion.isNotEmpty
-          ? _bloqueTexto(
-        'Prevención',
-        d.prevencion,
-        Icons.shield_outlined,
-        isDark,
-      )
+          ? _bloqueTexto('Prevención', d.prevencion, Icons.shield_outlined, isDark)
           : _bloqueVacio('No hay recomendaciones registradas', isDark),
     );
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // TAB 4: CUIDADOS
-  // ═══════════════════════════════════════════════════════════
   Widget _buildCuidadosTab(Diagnostico d, bool isDark) {
     final tieneCuidados = d.riegoFrecuenciaDias > 0 ||
         d.riegoNota != null ||
@@ -305,9 +256,6 @@ class _DiagnosticoResultadoScreenState
     );
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // CABECERA COMPACTA
-  // ═══════════════════════════════════════════════════════════
   Widget _cabeceraCard(Diagnostico d, bool isDark) {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -325,7 +273,6 @@ class _DiagnosticoResultadoScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Cultivo
           Row(
             children: [
               const Icon(Icons.eco, size: 12, color: AppColors.primary),
@@ -345,8 +292,6 @@ class _DiagnosticoResultadoScreenState
             ],
           ),
           const SizedBox(height: 4),
-
-          // Nombre enfermedad
           Text(
             d.nombreEnfermedad,
             style: AppTextStyles.headlineMedium.copyWith(
@@ -357,8 +302,6 @@ class _DiagnosticoResultadoScreenState
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
-
-          // Científico
           if (d.nombreCientifico != null) ...[
             const SizedBox(height: 2),
             Text(
@@ -372,8 +315,6 @@ class _DiagnosticoResultadoScreenState
               overflow: TextOverflow.ellipsis,
             ),
           ],
-
-          // Chips pegados al nombre
           const SizedBox(height: 8),
           Wrap(
             spacing: 4,
@@ -420,9 +361,6 @@ class _DiagnosticoResultadoScreenState
     );
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // ADVERTENCIAS (al lado derecho, bajo el card)
-  // ═══════════════════════════════════════════════════════════
   Widget _advertencias(Diagnostico d) {
     return Column(
       children: [
@@ -492,9 +430,6 @@ class _DiagnosticoResultadoScreenState
     );
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // TOP 3 (ancho completo)
-  // ═══════════════════════════════════════════════════════════
   Widget _top3Compacto(Diagnostico d, bool isDark) {
     return _tarjeta(
       isDark,
@@ -523,6 +458,13 @@ class _DiagnosticoResultadoScreenState
                 : entry.key == 1
                 ? AppColors.info
                 : AppColors.textTertiary;
+
+            final nombreVisible = p.nombreEnfermedad.isNotEmpty
+                ? p.nombreEnfermedad
+                : p.claseRaw
+                .replaceAll('___', ' · ')
+                .replaceAll('_', ' ');
+
             return Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: Column(
@@ -532,10 +474,8 @@ class _DiagnosticoResultadoScreenState
                     children: [
                       Expanded(
                         child: Text(
-                          p.nombreEnfermedad,
-                          style: AppTextStyles.bodyMedium.copyWith(
-                            fontSize: 11,
-                          ),
+                          nombreVisible,
+                          style: AppTextStyles.bodyMedium.copyWith(fontSize: 11),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -554,7 +494,7 @@ class _DiagnosticoResultadoScreenState
                   ClipRRect(
                     borderRadius: BorderRadius.circular(3),
                     child: LinearProgressIndicator(
-                      value: p.confianza,
+                      value: p.confianza > 1.0 ? p.confianza / 100.0 : p.confianza,
                       backgroundColor: color.withOpacity(0.1),
                       valueColor: AlwaysStoppedAnimation<Color>(color),
                       minHeight: 3,
@@ -569,15 +509,8 @@ class _DiagnosticoResultadoScreenState
     );
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // BLOQUES
-  // ═══════════════════════════════════════════════════════════
   Widget _bloqueTexto(
-      String titulo,
-      String contenido,
-      IconData icono,
-      bool isDark,
-      ) {
+      String titulo, String contenido, IconData icono, bool isDark) {
     return _tarjeta(
       isDark,
       child: Column(
@@ -595,19 +528,14 @@ class _DiagnosticoResultadoScreenState
                 child: Icon(icono, size: 15, color: AppColors.primary),
               ),
               const SizedBox(width: 8),
-              Text(
-                titulo,
-                style: AppTextStyles.titleMedium.copyWith(fontSize: 14),
-              ),
+              Text(titulo,
+                  style: AppTextStyles.titleMedium.copyWith(fontSize: 14)),
             ],
           ),
           const SizedBox(height: 10),
           Text(
             contenido,
-            style: AppTextStyles.bodyMedium.copyWith(
-              height: 1.5,
-              fontSize: 13,
-            ),
+            style: AppTextStyles.bodyMedium.copyWith(height: 1.5, fontSize: 13),
           ),
         ],
       ),
@@ -648,17 +576,12 @@ class _DiagnosticoResultadoScreenState
                   color: AppColors.info.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(
-                  Icons.water_drop_outlined,
-                  size: 15,
-                  color: AppColors.info,
-                ),
+                child: const Icon(Icons.water_drop_outlined,
+                    size: 15, color: AppColors.info),
               ),
               const SizedBox(width: 8),
-              Text(
-                'Cuidados',
-                style: AppTextStyles.titleMedium.copyWith(fontSize: 14),
-              ),
+              Text('Cuidados',
+                  style: AppTextStyles.titleMedium.copyWith(fontSize: 14)),
             ],
           ),
           const SizedBox(height: 10),
@@ -675,20 +598,16 @@ class _DiagnosticoResultadoScreenState
             const SizedBox(height: 4),
             Text(
               d.riegoNota!,
-              style: AppTextStyles.bodyMedium.copyWith(
-                height: 1.5,
-                fontSize: 13,
-              ),
+              style:
+              AppTextStyles.bodyMedium.copyWith(height: 1.5, fontSize: 13),
             ),
           ],
           if (d.otrosCuidados != null) ...[
             const SizedBox(height: 6),
             Text(
               d.otrosCuidados!,
-              style: AppTextStyles.bodyMedium.copyWith(
-                height: 1.5,
-                fontSize: 13,
-              ),
+              style:
+              AppTextStyles.bodyMedium.copyWith(height: 1.5, fontSize: 13),
             ),
           ],
         ],
@@ -711,17 +630,12 @@ class _DiagnosticoResultadoScreenState
                   color: AppColors.primary.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(
-                  Icons.store_outlined,
-                  size: 15,
-                  color: AppColors.primary,
-                ),
+                child: const Icon(Icons.store_outlined,
+                    size: 15, color: AppColors.primary),
               ),
               const SizedBox(width: 8),
-              Text(
-                'Dónde comprar',
-                style: AppTextStyles.titleMedium.copyWith(fontSize: 14),
-              ),
+              Text('Dónde comprar',
+                  style: AppTextStyles.titleMedium.copyWith(fontSize: 14)),
             ],
           ),
           const SizedBox(height: 8),
@@ -774,26 +688,13 @@ class _DiagnosticoResultadoScreenState
     );
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // ACCIÓN
-  // ═══════════════════════════════════════════════════════════
   Widget _accion(
       BuildContext context,
       Diagnostico d,
       DiagnosticoProvider provider,
       ) {
     if (d.estaVinculado) {
-      return PrimaryButton(
-        text: 'Volver al inicio',
-        onPressed: () {
-          provider.limpiar();
-          Navigator.pushNamedAndRemoveUntil(
-            context,
-            AppRoutes.home,
-                (_) => false,
-          );
-        },
-      );
+      return const SizedBox.shrink();
     }
 
     return PrimaryButton(
@@ -808,6 +709,9 @@ class _DiagnosticoResultadoScreenState
       BuildContext context,
       DiagnosticoProvider provider,
       ) async {
+    final d = provider.actual;
+    if (d == null) return;
+
     final plantaProvider = context.read<PlantaProvider>();
     if (plantaProvider.plantas.isEmpty) {
       await plantaProvider.cargar(silencioso: true);
@@ -815,36 +719,130 @@ class _DiagnosticoResultadoScreenState
 
     if (!context.mounted) return;
 
-    final elegida = await showModalBottomSheet<String>(
+    final _ResultadoModalGuardar? resultado =
+    await showModalBottomSheet<_ResultadoModalGuardar>(
       context: context,
       isScrollControlled: true,
-      builder: (sheetContext) => _SelectorPlanta(
-        plantas: plantaProvider.plantas,
-        onRegistrarNueva: () async {
-          final creada = await Navigator.push<PlantaDetalle>(
-            sheetContext,
-            MaterialPageRoute(
-              builder: (_) => const RegistrarPlantaScreen(),
-            ),
-          );
-          if (creada != null && sheetContext.mounted) {
-            Navigator.pop(sheetContext, creada.id);
-          }
-        },
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => _ModalGuardarPlantaConDiagnostico(
+        diagnostico: d,
+        plantasExistentes: plantaProvider.plantas,
       ),
     );
 
-    if (elegida == null || !context.mounted) return;
+    if (resultado == null || !context.mounted) return;
 
-    final messenger = ScaffoldMessenger.of(context);
-    final ok = await provider.vincular(elegida);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: AppColors.primaryLight),
+      ),
+    );
+
+    final ok = await provider.vincular(resultado.plantaId);
     if (!context.mounted) return;
 
+    Navigator.pop(context);
+
     if (ok) {
-      context.read<PlantaProvider>().cargar(silencioso: true);
-      context.read<ActividadProvider>().cargar(silencioso: true);
+      await context.read<PlantaProvider>().cargar(silencioso: true);
+      final actividadProvider = context.read<ActividadProvider>();
+      await actividadProvider.seleccionarFecha(DateTime.now(), silencioso: true);
+
+      try {
+        await context.read<PerfilProvider>().cargar(silencioso: true);
+      } catch (_) {}
+
+      if (!context.mounted) return;
+
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogCtx) {
+          final isDarkModal = Theme.of(dialogCtx).brightness == Brightness.dark;
+          return AlertDialog(
+            backgroundColor:
+            isDarkModal ? AppColors.darkSurface : AppColors.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            contentPadding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withOpacity(0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.check_circle_rounded,
+                    color: AppColors.success,
+                    size: 42,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '¡Planta y actividades registradas!',
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.titleMedium.copyWith(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: isDarkModal
+                        ? AppColors.darkTextPrimary
+                        : AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  resultado.apodoExistente != null
+                      ? 'Se asoció el diagnóstico a ${resultado.apodoExistente} y sus tareas están al día.'
+                      : 'Tu planta se agregó al jardín y sus tratamientos quedaron agendados.',
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.bodySmall.copyWith(
+                    fontSize: 12,
+                    color: isDarkModal
+                        ? AppColors.darkTextSecondary
+                        : AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(dialogCtx);
+                      provider.limpiar();
+                      Navigator.pushNamedAndRemoveUntil(
+                        context,
+                        AppRoutes.home,
+                            (_) => false,
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text(
+                      'Entendido',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
     } else {
-      messenger.showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(provider.error ?? 'No se pudo vincular'),
           backgroundColor: AppColors.error,
@@ -855,9 +853,6 @@ class _DiagnosticoResultadoScreenState
     }
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // HELPERS
-  // ═══════════════════════════════════════════════════════════
   Widget _chip(String texto, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
@@ -867,11 +862,7 @@ class _DiagnosticoResultadoScreenState
       ),
       child: Text(
         texto,
-        style: TextStyle(
-          fontSize: 9,
-          fontWeight: FontWeight.w700,
-          color: color,
-        ),
+        style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: color),
       ),
     );
   }
@@ -896,9 +887,6 @@ class _DiagnosticoResultadoScreenState
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// IMAGEN COMPACTA (llena la altura con Expanded)
-// ═══════════════════════════════════════════════════════════════
 class _ImagenCompacta extends StatefulWidget {
   final Diagnostico diagnostico;
 
@@ -919,7 +907,6 @@ class _ImagenCompactaState extends State<_ImagenCompacta> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Imagen que se estira a la altura disponible
         Expanded(
           child: GestureDetector(
             onTap: d.gradcamUrl != null
@@ -940,32 +927,24 @@ class _ImagenCompactaState extends State<_ImagenCompacta> {
                     : Image.network(
                   url,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, error, __) {
-                    debugPrint('No se pudo cargar: $url');
-                    return const Center(
-                      child: Icon(
-                        Icons.image_not_supported_outlined,
-                        size: 30,
-                        color: AppColors.primaryLight,
-                      ),
-                    );
-                  },
+                  errorBuilder: (_, error, __) => const Center(
+                    child: Icon(
+                      Icons.image_not_supported_outlined,
+                      size: 30,
+                      color: AppColors.primaryLight,
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
         ),
-
-        // Botón Ver mapa justo debajo
         if (d.gradcamUrl != null) ...[
           const SizedBox(height: 6),
           GestureDetector(
             onTap: () => setState(() => _mostrarMapa = !_mostrarMapa),
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 5,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
               decoration: BoxDecoration(
                 color: AppColors.primary.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
@@ -1003,9 +982,6 @@ class _ImagenCompactaState extends State<_ImagenCompacta> {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// TRATAMIENTO CARD
-// ═══════════════════════════════════════════════════════════════
 class _TratamientoCard extends StatefulWidget {
   final Tratamiento tratamiento;
   final bool principal;
@@ -1036,10 +1012,7 @@ class _TratamientoCardState extends State<_TratamientoCard> {
         color: isDark ? AppColors.darkSurface : AppColors.surface,
         borderRadius: BorderRadius.circular(14),
         border: widget.principal
-            ? Border.all(
-          color: AppColors.primary.withOpacity(0.4),
-          width: 1.5,
-        )
+            ? Border.all(color: AppColors.primary.withOpacity(0.5), width: 1.5)
             : null,
         boxShadow: [
           BoxShadow(
@@ -1052,6 +1025,31 @@ class _TratamientoCardState extends State<_TratamientoCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (widget.principal) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.star, size: 12, color: AppColors.primary),
+                  SizedBox(width: 4),
+                  Text(
+                    'Tratamiento recomendado',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           InkWell(
             onTap: () => setState(() => _abierto = !_abierto),
             child: Row(
@@ -1060,11 +1058,9 @@ class _TratamientoCardState extends State<_TratamientoCard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        t.nombre,
-                        style: AppTextStyles.titleMedium
-                            .copyWith(fontSize: 14),
-                      ),
+                      Text(t.nombre,
+                          style: AppTextStyles.titleMedium
+                              .copyWith(fontSize: 14)),
                       if (t.planTexto.isNotEmpty)
                         Text(
                           t.planTexto,
@@ -1087,19 +1083,14 @@ class _TratamientoCardState extends State<_TratamientoCard> {
             const SizedBox(height: 8),
             Row(
               children: [
-                const Icon(
-                  Icons.event_available,
-                  size: 14,
-                  color: AppColors.primary,
-                ),
+                const Icon(Icons.event_available,
+                    size: 14, color: AppColors.primary),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     'Este plan ya está programado en tus actividades.',
-                    style: AppTextStyles.bodySmall.copyWith(
-                      fontSize: 11,
-                      color: AppColors.primary,
-                    ),
+                    style: AppTextStyles.bodySmall
+                        .copyWith(fontSize: 11, color: AppColors.primary),
                   ),
                 ),
               ],
@@ -1107,13 +1098,9 @@ class _TratamientoCardState extends State<_TratamientoCard> {
           ],
           if (_abierto) ...[
             const SizedBox(height: 12),
-            Text(
-              t.descripcion,
-              style: AppTextStyles.bodyMedium.copyWith(
-                height: 1.5,
-                fontSize: 13,
-              ),
-            ),
+            Text(t.descripcion,
+                style: AppTextStyles.bodyMedium
+                    .copyWith(height: 1.5, fontSize: 13)),
             if (t.ingredientes.isNotEmpty) ...[
               const SizedBox(height: 14),
               _subtitulo('Ingredientes'),
@@ -1127,8 +1114,8 @@ class _TratamientoCardState extends State<_TratamientoCard> {
                       Expanded(
                         child: Text(
                           '${i.item}: ${i.cantidad}',
-                          style: AppTextStyles.bodyMedium
-                              .copyWith(fontSize: 13),
+                          style:
+                          AppTextStyles.bodyMedium.copyWith(fontSize: 13),
                         ),
                       ),
                     ],
@@ -1166,10 +1153,8 @@ class _TratamientoCardState extends State<_TratamientoCard> {
                       Expanded(
                         child: Text(
                           e.value,
-                          style: AppTextStyles.bodyMedium.copyWith(
-                            height: 1.4,
-                            fontSize: 13,
-                          ),
+                          style: AppTextStyles.bodyMedium
+                              .copyWith(height: 1.4, fontSize: 13),
                         ),
                       ),
                     ],
@@ -1179,13 +1164,9 @@ class _TratamientoCardState extends State<_TratamientoCard> {
             ],
             const SizedBox(height: 14),
             _subtitulo('Cómo aplicarlo'),
-            Text(
-              t.modoUso,
-              style: AppTextStyles.bodyMedium.copyWith(
-                height: 1.5,
-                fontSize: 13,
-              ),
-            ),
+            Text(t.modoUso,
+                style: AppTextStyles.bodyMedium
+                    .copyWith(height: 1.5, fontSize: 13)),
             if (t.precauciones != null) ...[
               const SizedBox(height: 12),
               Container(
@@ -1197,19 +1178,14 @@ class _TratamientoCardState extends State<_TratamientoCard> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(
-                      Icons.warning_amber_rounded,
-                      size: 16,
-                      color: AppColors.warning,
-                    ),
+                    const Icon(Icons.warning_amber_rounded,
+                        size: 16, color: AppColors.warning),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         t.precauciones!,
-                        style: AppTextStyles.bodySmall.copyWith(
-                          height: 1.4,
-                          fontSize: 11,
-                        ),
+                        style: AppTextStyles.bodySmall
+                            .copyWith(height: 1.4, fontSize: 11),
                       ),
                     ),
                   ],
@@ -1220,16 +1196,11 @@ class _TratamientoCardState extends State<_TratamientoCard> {
               const SizedBox(height: 10),
               Row(
                 children: [
-                  const Icon(
-                    Icons.payments_outlined,
-                    size: 14,
-                    color: AppColors.textTertiary,
-                  ),
+                  const Icon(Icons.payments_outlined,
+                      size: 14, color: AppColors.textTertiary),
                   const SizedBox(width: 6),
-                  Text(
-                    'Costo aproximado: ${t.costoAprox!}',
-                    style: AppTextStyles.bodySmall.copyWith(fontSize: 11),
-                  ),
+                  Text('Costo aproximado: ${t.costoAprox!}',
+                      style: AppTextStyles.bodySmall.copyWith(fontSize: 11)),
                 ],
               ),
             ],
@@ -1267,67 +1238,358 @@ class _TratamientoCardState extends State<_TratamientoCard> {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// SELECTOR DE PLANTA
+// MODAL: GUARDAR PLANTA
 // ═══════════════════════════════════════════════════════════════
-class _SelectorPlanta extends StatelessWidget {
-  final List<Planta> plantas;
-  final VoidCallback onRegistrarNueva;
+class _ModalGuardarPlantaConDiagnostico extends StatefulWidget {
+  final Diagnostico diagnostico;
+  final List<Planta> plantasExistentes;
 
-  const _SelectorPlanta({
-    required this.plantas,
-    required this.onRegistrarNueva,
+  const _ModalGuardarPlantaConDiagnostico({
+    required this.diagnostico,
+    required this.plantasExistentes,
   });
 
   @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: 12),
-          Text(
-            '¿A qué planta corresponde?',
-            style: AppTextStyles.titleLarge,
+  State<_ModalGuardarPlantaConDiagnostico> createState() =>
+      _ModalGuardarPlantaConDiagnosticoState();
+}
+
+class _ModalGuardarPlantaConDiagnosticoState
+    extends State<_ModalGuardarPlantaConDiagnostico> {
+  late TextEditingController _apodoController;
+  Ubicacion _ubicacion = Ubicacion.balcon;
+
+  int _opcionRiego = 0;
+  bool _creando = false;
+  bool _modoExistente = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _apodoController = TextEditingController(
+      text: 'Mi ${widget.diagnostico.cultivo}',
+    );
+  }
+
+  @override
+  void dispose() {
+    _apodoController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _guardarNuevaPlanta() async {
+    final apodo = _apodoController.text.trim();
+    if (apodo.isEmpty) return;
+
+    setState(() => _creando = true);
+
+    final ahora = DateTime.now();
+    DateTime fechaReferencia;
+    if (_opcionRiego == 0) {
+      fechaReferencia = ahora;
+    } else if (_opcionRiego == 1) {
+      fechaReferencia = ahora.subtract(const Duration(days: 1));
+    } else {
+      fechaReferencia = ahora.subtract(const Duration(days: 3));
+    }
+
+    try {
+      final plantaProvider = context.read<PlantaProvider>();
+
+      final form = PlantaForm(
+        apodo: apodo,
+        ubicacion: _ubicacion,
+        etapa: Etapa.crecimiento,
+        speciesId: null,
+        fechaSiembra: null,
+        ultimoRiego: fechaReferencia,
+      );
+
+      final nuevaPlanta = await plantaProvider.crear(form);
+
+      if (nuevaPlanta != null && mounted) {
+        Navigator.pop(
+          context,
+          _ResultadoModalGuardar(plantaId: nuevaPlanta.id),
+        );
+      } else if (mounted) {
+        setState(() => _creando = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                plantaProvider.error ?? 'No se pudo registrar la planta'),
+            backgroundColor: AppColors.error,
           ),
-          const SizedBox(height: 8),
-          Flexible(
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                ListTile(
-                  leading: const CircleAvatar(
-                    backgroundColor: AppColors.primaryBg,
-                    child: Icon(Icons.add, color: AppColors.primary),
-                  ),
-                  title: const Text('Registrar una planta nueva'),
-                  onTap: onRegistrarNueva,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _creando = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al registrar la planta: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final d = widget.diagnostico;
+
+    return Container(
+      padding: EdgeInsets.only(
+        top: 20,
+        left: 20,
+        right: 20,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+      ),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                if (plantas.isNotEmpty) const Divider(height: 1),
-                ...plantas.map(
-                      (p) => ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: AppColors.primaryBg,
-                      backgroundImage: p.fotoUrl == null
-                          ? null
-                          : NetworkImage(p.fotoUrl!),
-                      child: p.fotoUrl == null
-                          ? const Icon(
-                        Icons.local_florist,
-                        color: AppColors.primary,
-                        size: 18,
-                      )
-                          : null,
+              ),
+            ),
+            SizedBox(
+              width: double.infinity,
+              child: Text(
+                _modoExistente
+                    ? 'Vincular a planta de tu jardín'
+                    : 'Guardar en mi jardín',
+                textAlign: TextAlign.center,
+                style: AppTextStyles.headlineMedium.copyWith(fontSize: 18),
+              ),
+            ),
+            const SizedBox(height: 6),
+            SizedBox(
+              width: double.infinity,
+              child: Text(
+                _modoExistente
+                    ? 'Selecciona a cuál de tus plantas asociar este diagnóstico'
+                    : 'Cultivo detectado: ${d.cultivo}. Define su entorno para programar sus cuidados.',
+                textAlign: TextAlign.center,
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.textSecondary,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (!_modoExistente) ...[
+              Text(
+                'Apodo de la planta',
+                style: AppTextStyles.bodySmall.copyWith(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                  color: isDark
+                      ? AppColors.darkTextPrimary
+                      : AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: _apodoController,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: isDark
+                      ? AppColors.darkTextPrimary
+                      : AppColors.textPrimary,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Ej: Mi ${d.cultivo}',
+                  prefixIcon: const Icon(Icons.edit_outlined, size: 18),
+                  filled: true,
+                  fillColor: isDark
+                      ? AppColors.darkSurfaceVariant
+                      : const Color(0xFFF5F5F5),
+                  contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Ubicación de la planta',
+                style: AppTextStyles.bodySmall.copyWith(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                  color: isDark
+                      ? AppColors.darkTextPrimary
+                      : AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 6),
+              DropdownButtonFormField<Ubicacion>(
+                value: _ubicacion,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: isDark
+                      ? AppColors.darkTextPrimary
+                      : AppColors.textPrimary,
+                ),
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.place_outlined, size: 18),
+                  filled: true,
+                  fillColor: isDark
+                      ? AppColors.darkSurfaceVariant
+                      : const Color(0xFFF5F5F5),
+                  contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+                items: Ubicacion.values.map((u) {
+                  return DropdownMenuItem(
+                    value: u,
+                    child: Text(
+                      u.etiqueta,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: isDark
+                            ? AppColors.darkTextPrimary
+                            : AppColors.textPrimary,
+                      ),
                     ),
-                    title: Text(p.apodo),
-                    subtitle: Text(p.especieVisible),
-                    onTap: () => Navigator.pop(context, p.id),
+                  );
+                }).toList(),
+                onChanged: (val) {
+                  if (val != null) setState(() => _ubicacion = val);
+                },
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: Text(
+                  '¿Cuándo la regaste por última vez?',
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.bodySmall.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: isDark
+                        ? AppColors.darkTextPrimary
+                        : AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  _chipOpcion(label: 'Hoy', index: 0),
+                  const SizedBox(width: 8),
+                  _chipOpcion(label: 'Ayer', index: 1),
+                  const SizedBox(width: 8),
+                  _chipOpcion(label: 'Hace días', index: 2),
+                ],
+              ),
+              const SizedBox(height: 20),
+              PrimaryButton(
+                text: 'Guardar y activar cuidados',
+                icon: Icons.check,
+                isLoading: _creando,
+                onPressed: _guardarNuevaPlanta,
+              ),
+              if (widget.plantasExistentes.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Center(
+                  child: TextButton(
+                    onPressed: () => setState(() => _modoExistente = true),
+                    child:
+                    const Text('¿Ya la tenías registrada? Vincúlala aquí'),
                   ),
                 ),
               ],
-            ),
+            ] else ...[
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 250),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: widget.plantasExistentes.length,
+                  itemBuilder: (context, index) {
+                    final p = widget.plantasExistentes[index];
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: CircleAvatar(
+                        backgroundColor: AppColors.primaryBg,
+                        child:
+                        const Icon(Icons.eco, color: AppColors.primary),
+                      ),
+                      title: Text(p.apodo),
+                      subtitle: Text(p.especieVisible),
+                      onTap: () {
+                        Navigator.pop(
+                          context,
+                          _ResultadoModalGuardar(
+                            plantaId: p.id,
+                            apodoExistente: p.apodo,
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 10),
+              Center(
+                child: TextButton(
+                  onPressed: () => setState(() => _modoExistente = false),
+                  child: const Text('← Crear como una planta nueva'),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _chipOpcion({required String label, required int index}) {
+    final seleccionado = _opcionRiego == index;
+    return Expanded(
+      child: ChoiceChip(
+        label: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: seleccionado ? AppColors.primary : AppColors.textSecondary,
+            fontWeight: seleccionado ? FontWeight.w700 : FontWeight.normal,
           ),
-          const SizedBox(height: 12),
-        ],
+        ),
+        selected: seleccionado,
+        onSelected: (_) => setState(() => _opcionRiego = index),
+        selectedColor: AppColors.primaryLight.withOpacity(0.25),
+        backgroundColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: BorderSide(
+            color: seleccionado
+                ? AppColors.primary
+                : Colors.grey.withOpacity(0.3),
+          ),
+        ),
       ),
     );
   }

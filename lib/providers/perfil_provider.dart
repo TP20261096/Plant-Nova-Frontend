@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 
 import '../core/api/api_exception.dart';
@@ -40,18 +42,34 @@ class PerfilProvider extends ChangeNotifier {
     }
   }
 
+  /// POST /profile/avatar
+  Future<bool> cambiarFoto(File imagen) async {
+    _guardando = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      _perfil = await _service.subirFoto(imagen);
+      return true;
+    } on ApiException catch (e) {
+      _error = e.mensaje;
+      return false;
+    } catch (_) {
+      _error = 'No se pudo subir la foto de perfil.';
+      return false;
+    } finally {
+      _guardando = false;
+      notifyListeners();
+    }
+  }
+
   /// GET /profile/districts
-  ///
-  /// Se piden una sola vez: la lista de distritos no cambia entre pantallas.
   Future<void> cargarDistritos() async {
     if (_distritos.isNotEmpty) return;
     try {
       _distritos = await _service.distritos();
       notifyListeners();
-    } catch (_) {
-      // Si falla, el selector queda vacio y la pantalla lo indica. No es
-      // motivo para romper toda la edicion del perfil.
-    }
+    } catch (_) {}
   }
 
   /// PATCH /profile
@@ -90,7 +108,6 @@ class PerfilProvider extends ChangeNotifier {
       await _service.cambiarPassword(actual: actual, nueva: nueva);
       return true;
     } on ApiException catch (e) {
-      // El 401 aca no significa sesion caida sino contrasena incorrecta.
       _error = e.codigo == 401
           ? 'La contraseña actual no es correcta.'
           : e.mensaje;

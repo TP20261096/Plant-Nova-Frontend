@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_text_styles.dart';
+import '../../models/enums.dart';
 import '../../models/planta.dart';
 
-/// Tarjeta del Jardin. Reemplaza a GardenPlantCard.
+/// Tarjeta del Jardín.
 ///
-/// Mantiene el diseno de la anterior y agrega el estado del riego, que es el
-/// dato que el usuario necesita ver de un vistazo: si una planta esta
-/// atrasada, esta tarjeta tiene que gritarlo.
+/// Muestra foto, apodo, especie junto a su estado fitosanitario,
+/// y abajo los recordatorios de riego y próxima aplicación de tratamiento.
 class PlantaCard extends StatelessWidget {
   final Planta planta;
   final VoidCallback? onTap;
@@ -58,10 +58,7 @@ class PlantaCard extends StatelessWidget {
                   child: ClipRRect(
                     borderRadius:
                     const BorderRadius.vertical(top: Radius.circular(16)),
-                    child: Hero(
-                      tag: 'planta_foto_${planta.id}',
-                      child: _foto(),
-                    ),
+                    child: _foto(),
                   ),
                 ),
               ),
@@ -81,21 +78,32 @@ class PlantaCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      planta.especieVisible,
-                      style: AppTextStyles.bodySmall.copyWith(
-                        color: isDark
-                            ? AppColors.darkTextSecondary
-                            : AppColors.textSecondary,
-                        fontStyle: FontStyle.italic,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    // Especie + Badge de estado alineados horizontalmente
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            planta.especieVisible,
+                            style: AppTextStyles.bodySmall.copyWith(
+                              color: isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.textSecondary,
+                              fontStyle: FontStyle.italic,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        _badgeEstado(),
+                      ],
                     ),
                     const SizedBox(height: 8),
-                    _badgeEstado(),
-                    const SizedBox(height: 6),
                     _lineaRiego(isDark),
+                    if (planta.estado != EstadoPlanta.sana) ...[
+                      const SizedBox(height: 4),
+                      _lineaTratamiento(isDark),
+                    ],
                   ],
                 ),
               ),
@@ -109,26 +117,22 @@ class PlantaCard extends StatelessWidget {
   Widget _badgeEstado() {
     final color = planta.estado.color;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(planta.estado.icono, size: 12, color: color),
-          const SizedBox(width: 4),
-          Flexible(
-            child: Text(
-              planta.estado.etiqueta,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: color,
-              ),
+          Icon(planta.estado.icono, size: 10, color: color),
+          const SizedBox(width: 3),
+          Text(
+            planta.estado.etiqueta,
+            style: TextStyle(
+              fontSize: 9.5,
+              fontWeight: FontWeight.w600,
+              color: color,
             ),
           ),
         ],
@@ -167,10 +171,40 @@ class PlantaCard extends StatelessWidget {
     );
   }
 
+  Widget _lineaTratamiento(bool isDark) {
+    final atrasado = planta.tratamientoAtrasado;
+    final hoy = planta.tratamientoHoy;
+
+    final color = atrasado
+        ? AppColors.error
+        : hoy
+        ? AppColors.warning
+        : (isDark ? AppColors.darkTextSecondary : AppColors.textSecondary);
+
+    return Row(
+      children: [
+        Icon(Icons.healing_outlined, size: 11, color: color),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            planta.textoTratamiento,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 10,
+              color: color,
+              fontWeight:
+              atrasado || hoy ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _foto() {
     final url = planta.fotoUrl;
 
-    // Ya no hay rutas de archivo local: el backend devuelve URLs.
     if (url == null || url.isEmpty) return _placeholder();
 
     return Image.network(
@@ -195,6 +229,7 @@ class PlantaCard extends StatelessWidget {
   }
 
   Widget _placeholder() => const Center(
-    child: Icon(Icons.local_florist, size: 40, color: AppColors.primaryLight),
+    child:
+    Icon(Icons.local_florist, size: 40, color: AppColors.primaryLight),
   );
 }

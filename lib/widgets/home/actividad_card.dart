@@ -4,23 +4,11 @@ import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../models/actividad.dart';
 
-/// Tarjeta del menu Inicio. Reemplaza a ActivityCard, que recibia un
-/// Map<String, dynamic> sin tipos y un emoji como icono.
-///
-/// Tres estados que la anterior no sabia representar:
-///  - atrasada: borde rojo y cuantos dias lleva,
-///  - proyectada: atenuada y sin boton, porque todavia no existe en la base
-///    de datos y no se puede completar,
-///  - revision: en vez de marcarse, abre la camara.
 class ActividadCard extends StatelessWidget {
   final Actividad actividad;
-
-  /// Se llama al tocar el boton de completar.
   final VoidCallback? onCompletar;
-
-  /// Se llama en las actividades de tipo Revision, que abren la camara.
   final VoidCallback? onRevisar;
-
+  final VoidCallback? onTap;
   final bool completando;
 
   const ActividadCard({
@@ -28,6 +16,7 @@ class ActividadCard extends StatelessWidget {
     required this.actividad,
     this.onCompletar,
     this.onRevisar,
+    this.onTap,
     this.completando = false,
   }) : super(key: key);
 
@@ -37,33 +26,38 @@ class ActividadCard extends StatelessWidget {
     final proyectada = actividad.proyectada;
 
     return Opacity(
-      // Las proyectadas son una prevision, no una tarea real. Atenuarlas
-      // comunica eso sin necesidad de explicarlo.
       opacity: proyectada ? 0.55 : 1,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.darkSurface : AppColors.surface,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(12),
-          border: actividad.atrasada
-              ? Border.all(color: AppColors.error.withOpacity(0.5))
-              : null,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.darkSurface : AppColors.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: actividad.atrasada
+                  ? Border.all(color: AppColors.error.withOpacity(0.5))
+                  : null,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Row(
-          children: [
-            _icono(),
-            const SizedBox(width: 12),
-            Expanded(child: _texto(isDark)),
-            const SizedBox(width: 8),
-            _accion(),
-          ],
+            child: Row(
+              children: [
+                _icono(),
+                const SizedBox(width: 12),
+                Expanded(child: _texto(isDark)),
+                const SizedBox(width: 8),
+                _accion(),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -93,8 +87,6 @@ class ActividadCard extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: AppTextStyles.titleMedium.copyWith(
             fontSize: 14,
-            decoration:
-            actividad.completada ? TextDecoration.lineThrough : null,
             color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
           ),
         ),
@@ -143,40 +135,62 @@ class ActividadCard extends StatelessWidget {
   }
 
   Widget _accion() {
+    Widget contenido;
+
     if (completando) {
-      return const SizedBox(
-        width: 24,
-        height: 24,
-        child: CircularProgressIndicator(strokeWidth: 2),
+      contenido = const SizedBox(
+        width: 22,
+        height: 22,
+        child: CircularProgressIndicator(strokeWidth: 2.2),
+      );
+    } else if (actividad.completada) {
+      contenido = const Icon(
+        Icons.check_circle,
+        color: AppColors.success,
+        size: 26,
+      );
+    } else if (actividad.proyectada) {
+      contenido = const Icon(
+        Icons.schedule,
+        color: AppColors.textTertiary,
+        size: 24,
+      );
+    } else if (actividad.abreCamara) {
+      contenido = Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onRevisar,
+          borderRadius: BorderRadius.circular(20),
+          child: const Center(
+            child: Icon(
+              Icons.camera_alt_outlined,
+              color: AppColors.primary,
+              size: 24,
+            ),
+          ),
+        ),
+      );
+    } else {
+      contenido = Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onCompletar,
+          borderRadius: BorderRadius.circular(20),
+          child: const Center(
+            child: Icon(
+              Icons.radio_button_unchecked,
+              color: AppColors.textTertiary,
+              size: 26,
+            ),
+          ),
+        ),
       );
     }
 
-    if (actividad.completada) {
-      return const Icon(Icons.check_circle,
-          color: AppColors.success, size: 26);
-    }
-
-    if (actividad.proyectada) {
-      return const Icon(Icons.schedule,
-          color: AppColors.textTertiary, size: 22);
-    }
-
-    // Una revision no se marca a mano: se cierra sacando una foto nueva,
-    // que es lo que le da al backend la evidencia de si el tratamiento sirvio.
-    if (actividad.abreCamara) {
-      return IconButton(
-        onPressed: onRevisar,
-        icon: const Icon(Icons.camera_alt_outlined,
-            color: AppColors.primary, size: 24),
-        tooltip: 'Revisar con la cámara',
-      );
-    }
-
-    return IconButton(
-      onPressed: onCompletar,
-      icon: const Icon(Icons.radio_button_unchecked,
-          color: AppColors.textTertiary, size: 26),
-      tooltip: 'Marcar como hecha',
+    return SizedBox(
+      width: 40,
+      height: 40,
+      child: Center(child: contenido),
     );
   }
 }

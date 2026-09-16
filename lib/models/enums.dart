@@ -232,6 +232,8 @@ enum EstadoActividad {
 
 // -------------------------------------------------------------- dificultad
 
+// -------------------------------------------------------------- dificultad
+
 enum Dificultad {
   baja('Baja', 'Fácil'),
   media('Media', 'Media'),
@@ -244,9 +246,34 @@ enum Dificultad {
   final String etiqueta;
 
   static Dificultad desde(String? valor) {
-    return Dificultad.values.firstWhere(
-          (d) => d.valor == valor,
-      orElse: () => Dificultad.desconocida,
-    );
+    if (valor == null || valor.trim().isEmpty) {
+      return Dificultad.desconocida;
+    }
+
+    final normalizado = valor.trim().toLowerCase();
+    switch (normalizado) {
+      case 'baja':
+      case 'facil':
+      case 'fácil':
+      case 'easy':
+      case 'low':
+        return Dificultad.baja;
+
+      case 'media':
+      case 'medio':
+      case 'moderada':
+      case 'medium':
+        return Dificultad.media;
+
+      case 'alta':
+      case 'dificil':
+      case 'difícil':
+      case 'hard':
+      case 'high':
+        return Dificultad.alta;
+
+      default:
+        return Dificultad.desconocida;
+    }
   }
 }

@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../app/routes.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_text_styles.dart';
+import '../../models/actividad.dart';
+import '../../models/enums.dart';
 import '../../providers/actividad_provider.dart';
+import '../../providers/diagnostico_provider.dart';
 import '../../providers/planta_provider.dart';
 import '../../providers/weather_provider.dart';
 import '../../widgets/home/actividad_card.dart';
@@ -12,6 +17,7 @@ import '../../widgets/navigation/custom_bottom_navigation.dart';
 import '../actividades/actividades_dia_screen.dart';
 import '../diagnosis/upload_plant_screen.dart';
 import '../garden/jardin_screen.dart';
+import '../garden/planta_detalle_screen.dart';
 import '../guide/guia_screen.dart';
 import '../profile/perfil_screen.dart';
 
@@ -26,10 +32,16 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   DateTime _selectedDate = DateTime.now();
 
-  final PageController _pageController = PageController(initialPage: 2);
-
-  /// Máximo de actividades visibles en el inicio
   static const int _maxActividadesInicio = 3;
+
+  // Claves para persistir de forma independiente el scroll y estado de cada pestaña
+  final List<PageStorageKey<String>> _tabKeys = const [
+    PageStorageKey('tab_home'),
+    PageStorageKey('tab_guia'),
+    PageStorageKey('tab_diagnostico'),
+    PageStorageKey('tab_jardin'),
+    PageStorageKey('tab_perfil'),
+  ];
 
   @override
   void initState() {
@@ -41,30 +53,192 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
+  String _formatearFechaProxima(DateTime fecha) {
+    const meses = [
+      'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+      'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+    ];
+    const dias = [
+      'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'
+    ];
+    final diaSemana = dias[fecha.weekday - 1];
+    final mes = meses[fecha.month - 1];
+    return '$diaSemana ${fecha.day} de $mes';
+  }
+
+  void _mostrarDialogoExitoTratamiento(BuildContext context, Actividad actividad) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final numActual = actividad.aplicacionNum ?? 1;
+    final totalAplicaciones = actividad.totalAplicaciones ?? 3;
+
+    final esBordeles = actividad.titulo.toLowerCase().contains('bordel');
+    final diasIntervalo = esBordeles ? 10 : 7;
+    final fechaProxima = DateTime.now().add(Duration(days: diasIntervalo));
+    final fechaTexto = _formatearFechaProxima(fechaProxima);
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        contentPadding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.success.withOpacity(0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.check_circle_outline,
+                color: AppColors.success,
+                size: 38,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              '¡Tratamiento aplicado!',
+              style: AppTextStyles.titleMedium.copyWith(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+                color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            if (numActual < totalAplicaciones) ...[
+              Text(
+                'Has completado la dosis $numActual de $totalAplicaciones de ${actividad.planta}.',
+                style: AppTextStyles.bodyMedium.copyWith(
+                  fontSize: 13,
+                  color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.event, size: 16, color: AppColors.warning),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        'Próxima dosis: $fechaTexto',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.warning,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else ...[
+              Text(
+                '¡Completaste el ciclo de $totalAplicaciones aplicaciones!',
+                style: AppTextStyles.bodyMedium.copyWith(
+                  fontSize: 13,
+                  color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.primaryLight.withOpacity(0.3)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.camera_alt_outlined, size: 16, color: AppColors.primaryLight),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        'Revisión fitosanitaria: $fechaTexto',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primaryLight,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text('Entendido'),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final pantallas = [
-      _buildHomeContent(context),
-      const GuiaScreen(isEmbedded: true),
-      const UploadPlantScreen(isEmbedded: true),
-      const JardinScreen(isEmbedded: true),
-      const PerfilScreen(isEmbedded: true),
-    ];
-
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
-        children: pantallas,
+        children: [
+          KeyedSubtree(
+            key: _tabKeys[0],
+            child: _buildHomeContent(context),
+          ),
+          KeyedSubtree(
+            key: _tabKeys[1],
+            child: const GuiaScreen(isEmbedded: true),
+          ),
+          KeyedSubtree(
+            key: _tabKeys[2],
+            child: const UploadPlantScreen(isEmbedded: true),
+          ),
+          KeyedSubtree(
+            key: _tabKeys[3],
+            child: const JardinScreen(isEmbedded: true),
+          ),
+          KeyedSubtree(
+            key: _tabKeys[4],
+            child: const PerfilScreen(isEmbedded: true),
+          ),
+        ],
       ),
       bottomNavigationBar: CustomBottomNavigation(
         currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
+        onTap: (index) {
+          HapticFeedback.selectionClick();
+          setState(() => _currentIndex = index);
+        },
       ),
     );
   }
@@ -84,8 +258,9 @@ class _HomeScreenState extends State<HomeScreen> {
         },
         color: AppColors.primaryLight,
         child: SingleChildScrollView(
-          // ✅ AlwaysScrollable → siempre se puede scrollear (incluso si el contenido entra)
-          physics: const AlwaysScrollableScrollPhysics(),
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
+          ),
           padding: EdgeInsets.zero,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -132,9 +307,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         textAlign: TextAlign.center,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 8),
                     _buildDaysSelector(),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 8),
                     _buildActivitiesSection(context),
                   ],
                 ),
@@ -142,7 +317,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SizedBox(height: 4),
 
-              // 4. ESTADO DE CULTIVOS
+              // 4. ESTADO DE CULTIVOS (COMPACTO Y EQUILIBRADO)
               _buildPlantStatusSummary(context),
 
               const SizedBox(height: 4),
@@ -150,7 +325,6 @@ class _HomeScreenState extends State<HomeScreen> {
               // 5. CONSEJOS
               _buildQuickTip(),
 
-              // ✅ Espacio al final para que se pueda scrollear hasta el fondo
               const SizedBox(height: 24),
             ],
           ),
@@ -173,7 +347,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Cargando
         if (provider.cargando && todas.isEmpty)
           const Padding(
             padding: EdgeInsets.all(20),
@@ -190,12 +363,12 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           )
-        // Vacío
         else if (todas.isEmpty)
           _buildEmptyActivities(isDark)
-        // Con actividades
         else ...[
             ...visibles.map((actividad) {
+              final estaProcesando = provider.estaCompletando(actividad.id);
+
               return Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Container(
@@ -213,7 +386,45 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: ActividadCard(actividad: actividad),
+                    child: ActividadCard(
+                      actividad: actividad,
+                      completando: estaProcesando,
+                      onTap: () =>
+                          _mostrarModalDetalleActividad(context, actividad),
+                      onCompletar: () async {
+                        HapticFeedback.lightImpact();
+                        final ok = await provider.completar(actividad);
+                        if (!mounted) return;
+                        if (ok) {
+                          context.read<PlantaProvider>().cargar(silencioso: true);
+
+                          final esTratamiento = actividad.tipo == TipoActividad.tratamiento ||
+                              actividad.tipo == TipoActividad.revision ||
+                              actividad.aplicacionNum != null ||
+                              actividad.titulo.toLowerCase().contains('solución') ||
+                              actividad.titulo.toLowerCase().contains('extracto') ||
+                              actividad.titulo.toLowerCase().contains('aplicar');
+
+                          if (esTratamiento) {
+                            _mostrarDialogoExitoTratamiento(context, actividad);
+                          }
+                        } else if (provider.error != null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(provider.error!),
+                              backgroundColor: AppColors.error,
+                            ),
+                          );
+                        }
+                      },
+                      onRevisar: () {
+                        Navigator.pushNamed(
+                          context,
+                          AppRoutes.uploadPlant,
+                          arguments: {'plantId': actividad.plantId},
+                        );
+                      },
+                    ),
                   ),
                 ),
               );
@@ -224,6 +435,390 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ],
       ],
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // MODAL DETALLE DE ACTIVIDAD (Con aviso de próxima dosis)
+  // ═══════════════════════════════════════════════════════════
+  void _mostrarModalDetalleActividad(BuildContext context, Actividad actividad) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final esTratamiento = actividad.tipo == TipoActividad.tratamiento ||
+        actividad.tipo == TipoActividad.revision ||
+        actividad.aplicacionNum != null ||
+        actividad.titulo.toLowerCase().contains('solución') ||
+        actividad.titulo.toLowerCase().contains('extracto') ||
+        actividad.titulo.toLowerCase().contains('aplicar');
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (bottomContext) {
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.8,
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkSurface : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: actividad.tipo.color.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      actividad.tipo.icono,
+                      color: actividad.tipo.color,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          actividad.titulo,
+                          style: AppTextStyles.titleMedium.copyWith(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          actividad.planta,
+                          style: AppTextStyles.bodySmall.copyWith(
+                            color: isDark
+                                ? AppColors.darkTextSecondary
+                                : AppColors.textSecondary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        if (actividad.progresoTexto != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            actividad.progresoTexto!,
+                            style: AppTextStyles.bodySmall.copyWith(
+                              color: AppColors.primaryLight,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const Divider(height: 24),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 1. INDICACIONES RÁPIDAS
+                      if (actividad.descripcion != null &&
+                          actividad.descripcion!.isNotEmpty) ...[
+                        Text(
+                          'INDICACIONES RÁPIDAS',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.6,
+                            color: isDark
+                                ? AppColors.darkTextTertiary
+                                : AppColors.textTertiary,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? AppColors.darkSurfaceVariant
+                                : AppColors.surfaceVariant,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            actividad.descripcion!,
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              height: 1.5,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
+
+                      // 2. RECORDATORIO DE PRÓXIMO TRATAMIENTO / REVISIÓN
+                      if (esTratamiento) ...[
+                        const SizedBox(height: 12),
+                        Builder(
+                          builder: (context) {
+                            final numActual = actividad.aplicacionNum ?? 1;
+                            final total = actividad.totalAplicaciones ?? 3;
+                            final esBordeles = actividad.titulo.toLowerCase().contains('bordel');
+                            final diasIntervalo = esBordeles ? 10 : 7;
+                            final proximaFecha = DateTime.now().add(Duration(days: diasIntervalo));
+                            final fechaFormateada = _formatearFechaProxima(proximaFecha);
+                            final esUltimaDosis = numActual >= total;
+
+                            final colorBase = esUltimaDosis ? AppColors.primaryLight : AppColors.warning;
+
+                            return Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: colorBase.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: colorBase.withOpacity(0.25)),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(7),
+                                    decoration: BoxDecoration(
+                                      color: colorBase.withOpacity(0.15),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      esUltimaDosis ? Icons.camera_alt_outlined : Icons.calendar_today_outlined,
+                                      size: 16,
+                                      color: colorBase,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          esUltimaDosis
+                                              ? 'REVISIÓN TRAS COMPLETAR'
+                                              : 'PRÓXIMO TRATAMIENTO',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w700,
+                                            letterSpacing: 0.5,
+                                            color: colorBase,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          esUltimaDosis
+                                              ? 'Foto diagnóstica el $fechaFormateada'
+                                              : 'Siguiente dosis el $fechaFormateada',
+                                          style: AppTextStyles.bodyMedium.copyWith(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+
+                      // 3. ACCESO A LA GUÍA PASO A PASO
+                      if (esTratamiento) ...[
+                        const SizedBox(height: 12),
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () async {
+                              Navigator.pop(bottomContext);
+
+                              final idPlanta = actividad.plantId;
+                              if (idPlanta.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'No se pudo encontrar el identificador de la planta',
+                                    ),
+                                    backgroundColor: AppColors.warning,
+                                  ),
+                                );
+                                return;
+                              }
+
+                              showDialog(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (_) => const Center(
+                                  child: CircularProgressIndicator(
+                                    color: AppColors.primaryLight,
+                                  ),
+                                ),
+                              );
+
+                              final plantaProvider = context.read<PlantaProvider>();
+                              final diagnosticoProvider = context.read<DiagnosticoProvider>();
+
+                              await plantaProvider.cargarDetalle(idPlanta);
+                              final detalle = plantaProvider.detalle;
+
+                              if (!mounted) return;
+
+                              if (detalle != null && detalle.diagnosticos.isNotEmpty) {
+                                final idDiag = detalle.diagnosticos.first.id;
+                                final ok = await diagnosticoProvider.cargar(idDiag);
+
+                                if (!mounted) return;
+                                Navigator.pop(context);
+
+                                if (ok) {
+                                  Navigator.pushNamed(
+                                    context,
+                                    AppRoutes.diagnosticoResultado,
+                                    arguments: {'tabInicial': 1},
+                                  );
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        diagnosticoProvider.error ?? 'No se pudo abrir el tratamiento',
+                                      ),
+                                      backgroundColor: AppColors.error,
+                                    ),
+                                  );
+                                  diagnosticoProvider.limpiarError();
+                                }
+                              } else {
+                                Navigator.pop(context);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => PlantaDetalleScreen(
+                                      plantaId: idPlanta,
+                                      enfocarCuidados: true,
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryLight.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: AppColors.primaryLight.withOpacity(0.3),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.healing_outlined,
+                                    color: AppColors.primaryLight,
+                                    size: 22,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Ver tratamiento de ${actividad.planta}',
+                                          style: AppTextStyles.titleMedium.copyWith(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.primaryLight,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Preparación, dosis e ingredientes orgánicos paso a paso',
+                                          style: AppTextStyles.bodySmall.copyWith(
+                                            fontSize: 11,
+                                            color: isDark
+                                                ? AppColors.darkTextSecondary
+                                                : AppColors.textSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.arrow_forward_ios_rounded,
+                                    size: 14,
+                                    color: AppColors.primaryLight,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 20),
+                    ],
+                  ),
+                ),
+              ),
+              if (!actividad.completada && !actividad.proyectada)
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      Navigator.pop(bottomContext);
+                      HapticFeedback.lightImpact();
+
+                      final provider = context.read<ActividadProvider>();
+                      final ok = await provider.completar(actividad);
+
+                      if (!mounted || !ok) return;
+
+                      // Sincroniza estado de plantas en jardín e inicio
+                      context.read<PlantaProvider>().cargar(silencioso: true);
+
+                      if (esTratamiento) {
+                        _mostrarDialogoExitoTratamiento(context, actividad);
+                      }
+                    },
+                    icon: const Icon(Icons.check, size: 18),
+                    label: const Text('Marcar como completada'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -296,19 +891,28 @@ class _HomeScreenState extends State<HomeScreen> {
   // SELECTOR DE DÍAS
   // ═══════════════════════════════════════════════════════════
   Widget _buildDaysSelector() {
-    return Container(
-      height: 56,
-      child: PageView.builder(
-        controller: _pageController,
-        itemCount: 5,
-        onPageChanged: (index) {
-          final date = DateTime.now().add(Duration(days: index - 2));
-          setState(() => _selectedDate = date);
-          context.read<ActividadProvider>().seleccionarFecha(date);
-        },
+    final now = DateTime.now();
+    final dias = List.generate(7, (i) => now.add(Duration(days: i - 2)));
+
+    return SizedBox(
+      height: 58,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: dias.length,
         itemBuilder: (context, index) {
-          final date = DateTime.now().add(Duration(days: index - 2));
-          return _buildDayCard(date);
+          final date = dias[index];
+          return GestureDetector(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              setState(() => _selectedDate = date);
+              context.read<ActividadProvider>().seleccionarFecha(date);
+            },
+            child: SizedBox(
+              width: 52,
+              child: _buildDayCard(date),
+            ),
+          );
         },
       ),
     );
@@ -332,9 +936,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final dayNameColor = isToday
         ? Colors.white.withOpacity(0.9)
-        : (isDark
-        ? AppColors.darkTextSecondary
-        : AppColors.textSecondary);
+        : (isDark ? AppColors.darkTextSecondary : AppColors.textSecondary);
 
     final dayNumberColor = isToday
         ? Colors.white
@@ -499,7 +1101,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Text(
                   '${weather.description} · ${weather.temperature.toStringAsFixed(1)}°C',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.95),
+                    color: Colors.white,
                     fontSize: 11,
                   ),
                   maxLines: 1,
@@ -589,7 +1191,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ═══════════════════════════════════════════════════════════
-  // ESTADO DE CULTIVOS
+  // ESTADO DE CULTIVOS (COMPACTO Y EQUILIBRADO)
   // ═══════════════════════════════════════════════════════════
   Widget _buildPlantStatusSummary(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -597,7 +1199,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 8),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -615,7 +1217,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Container(
             width: double.infinity,
             alignment: Alignment.center,
-            padding: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.only(bottom: 8),
             child: Text(
               'Estado de tus cultivos',
               style: AppTextStyles.titleMedium.copyWith(
@@ -635,20 +1237,35 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: AppColors.success,
                 label: 'Sanas',
                 value: plantaProvider.sanas,
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const JardinScreen(
+                        filtroInicial: FiltroJardin.sanas,
+                      ),
+                    ),
+                  );
+                },
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
               _buildStatusItem(
                 icon: Icons.healing,
                 color: AppColors.warning,
-                label: 'Tratamiento',
+                label: 'En tratamiento',
                 value: plantaProvider.enTratamiento,
-              ),
-              const SizedBox(width: 6),
-              _buildStatusItem(
-                icon: Icons.water_drop,
-                color: AppColors.error,
-                label: 'Riego',
-                value: plantaProvider.conRiegoAtrasado,
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const JardinScreen(
+                        filtroInicial: FiltroJardin.tratamiento,
+                      ),
+                    ),
+                  );
+                },
               ),
             ],
           ),
@@ -662,38 +1279,57 @@ class _HomeScreenState extends State<HomeScreen> {
     required Color color,
     required String label,
     required int value,
+    required VoidCallback onTap,
   }) {
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(height: 4),
-            Text(
-              '$value',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
+      child: Material(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          splashColor: color.withOpacity(0.25),
+          highlightColor: color.withOpacity(0.12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: color.withOpacity(0.3)),
             ),
-            const SizedBox(height: 1),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w500,
-                color: color,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Icon(icon, color: color, size: 20),
+                    const SizedBox(width: 6),
+                    Text(
+                      '$value',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: color,
+                    height: 1.2,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -709,27 +1345,32 @@ class _HomeScreenState extends State<HomeScreen> {
       {
         'icon': Icons.water_drop,
         'titulo': 'Riego matutino',
-        'texto': 'Riega tus plantas temprano en la mañana para evitar la evaporación.',
+        'texto':
+        'Riega tus plantas temprano en la mañana para evitar la evaporación.',
       },
       {
         'icon': Icons.wb_sunny,
         'titulo': 'Luz adecuada',
-        'texto': 'La mayoría de cultivos necesitan 6-8 horas de luz solar directa al día.',
+        'texto':
+        'La mayoría de cultivos necesitan 6-8 horas de luz solar directa al día.',
       },
       {
         'icon': Icons.eco,
         'titulo': 'Abono orgánico',
-        'texto': 'Usa compost o humus de lombriz cada 15 días para fortalecer tus plantas.',
+        'texto':
+        'Usa compost o humus de lombriz cada 15 días para fortalecer tus plantas.',
       },
       {
         'icon': Icons.content_cut,
         'titulo': 'Poda regular',
-        'texto': 'Elimina hojas secas o enfermas para mejorar la circulación de aire.',
+        'texto':
+        'Elimina hojas secas o enfermas para mejorar la circulación de aire.',
       },
       {
         'icon': Icons.bug_report,
         'titulo': 'Monitoreo',
-        'texto': 'Revisa el envés de las hojas cada 2-3 días para detectar plagas a tiempo.',
+        'texto':
+        'Revisa el envés de las hojas cada 2-3 días para detectar plagas a tiempo.',
       },
     ];
 
@@ -855,9 +1496,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // EMPTY ACTIVITIES
-  // ═══════════════════════════════════════════════════════════
   Widget _buildEmptyActivities(bool isDark) {
     return Container(
       width: double.infinity,
@@ -903,9 +1541,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // HELPERS
-  // ═══════════════════════════════════════════════════════════
   String _tituloActividades(DateTime date) {
     final now = DateTime.now();
 
