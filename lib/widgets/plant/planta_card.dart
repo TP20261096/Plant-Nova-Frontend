@@ -47,6 +47,7 @@ class PlantaCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
+                flex: 5, // Proporción equilibrada para la imagen
                 child: Container(
                   width: double.infinity,
                   decoration: BoxDecoration(
@@ -62,49 +63,62 @@ class PlantaCard extends StatelessWidget {
                   ),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      planta.apodo,
-                      style: AppTextStyles.titleMedium.copyWith(
-                        color: isDark
-                            ? AppColors.darkTextPrimary
-                            : AppColors.textPrimary,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    // Especie + Badge de estado alineados horizontalmente
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            planta.especieVisible,
-                            style: AppTextStyles.bodySmall.copyWith(
+              Expanded(
+                flex: 4, // Espacio optimizado para los textos y estados
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            planta.apodo,
+                            style: AppTextStyles.titleMedium.copyWith(
                               color: isDark
-                                  ? AppColors.darkTextSecondary
-                                  : AppColors.textSecondary,
-                              fontStyle: FontStyle.italic,
+                                  ? AppColors.darkTextPrimary
+                                  : AppColors.textPrimary,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                        const SizedBox(width: 6),
-                        _badgeEstado(),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    _lineaRiego(isDark),
-                    if (planta.estado != EstadoPlanta.sana) ...[
-                      const SizedBox(height: 4),
-                      _lineaTratamiento(isDark),
+                          const SizedBox(height: 2),
+                          // Especie + Badge de estado alineados horizontalmente
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  planta.especieVisible,
+                                  style: AppTextStyles.bodySmall.copyWith(
+                                    color: isDark
+                                        ? AppColors.darkTextSecondary
+                                        : AppColors.textSecondary,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              _badgeEstado(),
+                            ],
+                          ),
+                        ],
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _lineaRiego(isDark),
+                          if (planta.estado != EstadoPlanta.sana) ...[
+                            const SizedBox(height: 3),
+                            _lineaTratamiento(isDark),
+                          ],
+                        ],
+                      ),
                     ],
-                  ],
+                  ),
                 ),
               ),
             ],
@@ -117,7 +131,7 @@ class PlantaCard extends StatelessWidget {
   Widget _badgeEstado() {
     final color = planta.estado.color;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: color.withOpacity(0.12),
         borderRadius: BorderRadius.circular(6),
@@ -125,12 +139,12 @@ class PlantaCard extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(planta.estado.icono, size: 10, color: color),
+          Icon(planta.estado.icono, size: 9, color: color),
           const SizedBox(width: 3),
           Text(
             planta.estado.etiqueta,
             style: TextStyle(
-              fontSize: 9.5,
+              fontSize: 9,
               fontWeight: FontWeight.w600,
               color: color,
             ),
@@ -174,27 +188,32 @@ class PlantaCard extends StatelessWidget {
   Widget _lineaTratamiento(bool isDark) {
     final atrasado = planta.tratamientoAtrasado;
     final hoy = planta.tratamientoHoy;
+    final esRevision = planta.proximoTipo == 'Revision' || planta.proximoTipo == 'RevisionCompletada';
 
     final color = atrasado
         ? AppColors.error
-        : hoy
+        : hoy || esRevision
         ? AppColors.warning
         : (isDark ? AppColors.darkTextSecondary : AppColors.textSecondary);
 
     return Row(
       children: [
-        Icon(Icons.healing_outlined, size: 11, color: color),
+        Icon(
+          esRevision ? Icons.fact_check_outlined : Icons.healing_outlined,
+          size: 11,
+          color: color,
+        ),
         const SizedBox(width: 4),
         Expanded(
           child: Text(
-            planta.textoTratamiento,
+            planta.textoTratamiento, // <--- Aquí cambiaste el nombre o usamos el oficial
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 10,
               color: color,
               fontWeight:
-              atrasado || hoy ? FontWeight.w600 : FontWeight.normal,
+              atrasado || hoy || esRevision ? FontWeight.w600 : FontWeight.normal,
             ),
           ),
         ),

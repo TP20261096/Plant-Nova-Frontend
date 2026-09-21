@@ -80,9 +80,6 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
 
     _progressController.forward();
 
-    // La peticion sale de inmediato y la animacion corre en paralelo. Antes
-    // se esperaban 4,8 segundos y recien despues se llamaba al servicio, asi
-    // que el usuario pagaba la animacion mas el tiempo del modelo.
     final analisis = provider.analizar();
     final minimo = Future.delayed(const Duration(milliseconds: 2500));
 
@@ -111,7 +108,20 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
       return;
     }
 
-    Navigator.pushReplacementNamed(context, AppRoutes.diagnosticoResultado);
+    // 🚀 RECUPERAR LOS ARGUMENTOS ACTUALES (para saber si es revisión o viene de una planta)
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final esRevision = args?['esRevision'] as bool? ?? false;
+    final plantId = args?['plantId'] as String?;
+
+    // 🚀 PASARLOS A LA PANTALLA DE RESULTADOS
+    Navigator.pushReplacementNamed(
+      context,
+      AppRoutes.diagnosticoResultado,
+      arguments: {
+        'esRevision': esRevision,
+        'plantId': plantId,
+      },
+    );
   }
 
   void _startMessageRotation() {

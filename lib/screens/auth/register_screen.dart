@@ -65,6 +65,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final cargando = context.watch<AuthProvider>().cargando;
+    final estiloInput = Theme.of(context).textTheme.bodyLarge?.copyWith(
+      color: AppColors.textPrimary,
+    );
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -84,11 +87,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // ───── Header (centrado) ─────
                 Text(
                   'Crea tu cuenta',
                   textAlign: TextAlign.center,
-                  style: AppTextStyles.displayMedium,
+                  style: AppTextStyles.displayMedium?.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 Text(
@@ -100,11 +104,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 40),
 
-                // ───── Campo: Nombre ─────
+                // Campo: Nombre
                 TextFormField(
                   controller: _nombreCtrl,
                   textCapitalization: TextCapitalization.words,
                   textInputAction: TextInputAction.next,
+                  style: estiloInput,
                   decoration: _campo('Nombre', Icons.person_outline),
                   validator: (v) => (v ?? '').trim().isEmpty
                       ? 'Ingresa tu nombre'
@@ -112,12 +117,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 18),
 
-                // ───── Campo: Correo ─────
+                // Campo: Correo
                 TextFormField(
                   controller: _emailCtrl,
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
                   autocorrect: false,
+                  style: estiloInput,
                   decoration: _campo('Correo', Icons.mail_outline),
                   validator: (v) {
                     final texto = (v ?? '').trim();
@@ -130,11 +136,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 18),
 
-                // ───── Campo: Contraseña ─────
+                // Campo: Contraseña
                 TextFormField(
                   controller: _passCtrl,
                   obscureText: !_verPassword,
                   textInputAction: TextInputAction.next,
+                  style: estiloInput,
                   decoration: _campo(
                     'Contraseña',
                     Icons.lock_outline,
@@ -158,12 +165,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 18),
 
-                // ───── Campo: Confirmar contraseña ─────
+                // Campo: Confirmar contraseña
                 TextFormField(
                   controller: _confirmCtrl,
                   obscureText: !_verPassword,
                   textInputAction: TextInputAction.done,
                   onFieldSubmitted: (_) => _registrar(),
+                  style: estiloInput,
                   decoration: _campo(
                     'Repite la contraseña',
                     Icons.lock_outline,
@@ -174,7 +182,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 36),
 
-                // ───── Botón principal ─────
                 PrimaryButton(
                   text: 'Crear cuenta',
                   isLoading: cargando,
@@ -182,13 +189,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // ───── Enlace a login ─────
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      '¿Ya tienes cuenta?',
-                      style: AppTextStyles.bodyMedium,
+                      '¿Ya tienes cuenta? ',
+                      style: AppTextStyles.bodyMedium?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                     TextButton(
                       onPressed: cargando
@@ -219,9 +227,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // InputDecoration mejorada
-  // ─────────────────────────────────────────────────────────────
   InputDecoration _campo(String etiqueta, IconData icono, {Widget? sufijo}) {
     return InputDecoration(
       labelText: etiqueta,

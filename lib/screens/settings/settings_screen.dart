@@ -15,7 +15,6 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _notificationsEnabled = true;
-  String _language = 'Español';
 
   @override
   void initState() {
@@ -27,7 +26,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _notificationsEnabled = prefs.getBool('notifications_enabled') ?? true;
-      _language = prefs.getString('language') ?? 'Español';
     });
   }
 
@@ -132,27 +130,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
 
-          const SizedBox(height: 10),
-
-          // Box 3: Idioma
-          _boxContenedor(
-            isDark: isDark,
-            child: _filaNavegacion(
-              isDark: isDark,
-              icono: Icons.language_outlined,
-              colorIcono: const Color(0xFF29B6F6),
-              titulo: 'Idioma',
-              subtitulo: _language,
-              onTap: () => _showLanguageDialog(isDark),
-            ),
-          ),
-
           const SizedBox(height: 24),
 
           _seccionTitulo('INFORMACIÓN', isDark),
           const SizedBox(height: 10),
 
-          // Box 4: Privacidad
+          // Box 3: Privacidad
           _boxContenedor(
             isDark: isDark,
             child: _filaNavegacion(
@@ -167,7 +150,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 10),
 
-          // Box 5: Acerca de
+          // Box 4: Acerca de
           _boxContenedor(
             isDark: isDark,
             child: _filaNavegacion(
@@ -357,215 +340,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // ═══════════════════════════════════════════════════════════
   // MODALES ESTILIZADOS
   // ═══════════════════════════════════════════════════════════
-
-  void _showLanguageDialog(bool isDark) {
-    showDialog(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
-        contentPadding: const EdgeInsets.fromLTRB(20, 24, 20, 18),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFF29B6F6).withOpacity(0.12),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.language_rounded,
-                color: Color(0xFF29B6F6),
-                size: 30,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Seleccionar idioma',
-              style: AppTextStyles.titleMedium.copyWith(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Elige el idioma principal para toda la aplicación.',
-              style: AppTextStyles.bodyMedium.copyWith(
-                fontSize: 12.5,
-                color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-
-            _opcionIdiomaItem(
-              titulo: 'Español',
-              subtitulo: 'Predeterminado',
-              bandera: '🇪🇸',
-              seleccionado: _language == 'Español',
-              isDark: isDark,
-              onTap: () {
-                setState(() => _language = 'Español');
-                _saveSetting('language', 'Español');
-                Navigator.of(dialogCtx).pop();
-              },
-            ),
-            const SizedBox(height: 10),
-            _opcionIdiomaItem(
-              titulo: 'English',
-              subtitulo: 'Inglés',
-              bandera: '🇺🇸',
-              seleccionado: _language == 'English',
-              isDark: isDark,
-              onTap: () {
-                setState(() => _language = 'English');
-                _saveSetting('language', 'English');
-                Navigator.of(dialogCtx).pop();
-              },
-            ),
-
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () => Navigator.of(dialogCtx).pop(),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  side: BorderSide(
-                    color: isDark ? const Color(0xFF424242) : const Color(0xFFE0E0E0),
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: Text(
-                  'Cancelar',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _opcionIdiomaItem({
-    required String titulo,
-    required String subtitulo,
-    required String bandera,
-    required bool seleccionado,
-    required bool isDark,
-    required VoidCallback onTap,
-  }) {
-    final borderColor = seleccionado
-        ? AppColors.primaryLight
-        : (isDark ? const Color(0xFF333333) : const Color(0xFFE8E8E8));
-
-    final bgColor = seleccionado
-        ? AppColors.primaryLight.withOpacity(isDark ? 0.12 : 0.08)
-        : (isDark ? AppColors.darkBackground : const Color(0xFFF9F9F9));
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: borderColor,
-              width: seleccionado ? 1.5 : 1.0,
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? Colors.white.withOpacity(0.06)
-                      : Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: isDark
-                        ? Colors.white.withOpacity(0.08)
-                        : const Color(0xFFEEEEEE),
-                  ),
-                ),
-                child: Text(
-                  bandera,
-                  style: const TextStyle(fontSize: 18),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      titulo,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: seleccionado ? FontWeight.bold : FontWeight.w600,
-                        color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitulo,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        color: isDark
-                            ? AppColors.darkTextSecondary
-                            : AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                width: 22,
-                height: 22,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: seleccionado ? AppColors.primaryLight : Colors.transparent,
-                  border: Border.all(
-                    color: seleccionado
-                        ? AppColors.primaryLight
-                        : (isDark ? const Color(0xFF666666) : const Color(0xFFBDBDBD)),
-                    width: 1.5,
-                  ),
-                ),
-                child: seleccionado
-                    ? const Icon(
-                  Icons.check,
-                  size: 14,
-                  color: Colors.white,
-                )
-                    : null,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   void _showPrivacyDialog(bool isDark) {
     showDialog(

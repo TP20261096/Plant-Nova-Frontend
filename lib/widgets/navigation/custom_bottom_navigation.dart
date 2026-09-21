@@ -16,7 +16,6 @@ class CustomBottomNavigation extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      height: 65,
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : AppColors.surface,
         boxShadow: [
@@ -27,35 +26,44 @@ class CustomBottomNavigation extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildNavItem(
-            icon: Icons.home_outlined,
-            activeIcon: Icons.home,
-            index: 0,
-            isDark: isDark,
+      child: SafeArea(
+        top: false,
+        left: false,
+        right: false,
+        bottom: true,
+        child: SizedBox(
+          height: 65,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildNavItem(
+                icon: Icons.home_outlined,
+                activeIcon: Icons.home,
+                index: 0,
+                isDark: isDark,
+              ),
+              _buildNavItem(
+                icon: Icons.menu_book_outlined,
+                activeIcon: Icons.menu_book,
+                index: 1,
+                isDark: isDark,
+              ),
+              _buildAnalyzeButton(isDark),
+              _buildNavItem(
+                icon: Icons.local_florist_outlined,
+                activeIcon: Icons.local_florist,
+                index: 3,
+                isDark: isDark,
+              ),
+              _buildNavItem(
+                icon: Icons.person_outline,
+                activeIcon: Icons.person,
+                index: 4,
+                isDark: isDark,
+              ),
+            ],
           ),
-          _buildNavItem(
-            icon: Icons.menu_book_outlined,
-            activeIcon: Icons.menu_book,
-            index: 1,
-            isDark: isDark,
-          ),
-          _buildAnalyzeButton(isDark),
-          _buildNavItem(
-            icon: Icons.local_florist_outlined,
-            activeIcon: Icons.local_florist,
-            index: 3,
-            isDark: isDark,
-          ),
-          _buildNavItem(
-            icon: Icons.person_outline,
-            activeIcon: Icons.person,
-            index: 4,
-            isDark: isDark,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -76,16 +84,14 @@ class CustomBottomNavigation extends StatelessWidget {
     return Expanded(
       child: InkWell(
         onTap: () => onTap(index),
-        child: Container(
-          height: 65,
-          alignment: Alignment.center,
+        child: Center(
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.all(8),
             child: Icon(
               isSelected ? activeIcon : icon,
               color: color,
-              size: 28, // ← Icono más grande
+              size: 28,
             ),
           ),
         ),
@@ -99,31 +105,23 @@ class CustomBottomNavigation extends StatelessWidget {
     return Expanded(
       child: InkWell(
         onTap: () => onTap(2),
-        child: Container(
-          height: 65,
-          alignment: Alignment.center,
+        child: Center(
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            width: 44,
-            height: 44,
+            width: 46,
+            height: 46,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: isSelected
-                    ? [
-                  AppColors.primaryLight,
-                  AppColors.primary,
-                ]
-                    : [
-                  AppColors.primary,
-                  AppColors.primaryLight,
-                ],
+                    ? [AppColors.primaryLight, AppColors.primary]
+                    : [AppColors.primary, AppColors.primaryLight],
               ),
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.primary.withOpacity(0.3),
+                  color: AppColors.primary.withOpacity(0.35),
                   blurRadius: 6,
                   offset: const Offset(0, 3),
                 ),

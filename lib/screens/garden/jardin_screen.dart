@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../app/routes.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../models/enums.dart';
@@ -12,7 +13,6 @@ import '../../widgets/common/empty_state.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/loading_view.dart';
 import '../../widgets/plant/planta_card.dart';
-import '../plants/registrar_planta_screen.dart';
 import 'planta_detalle_screen.dart';
 
 /// Tipos de filtro interactivo para la vista de jardín
@@ -22,11 +22,13 @@ enum FiltroJardin { todas, sanas, tratamiento }
 class JardinScreen extends StatefulWidget {
   final bool isEmbedded;
   final FiltroJardin filtroInicial;
+  final VoidCallback? onIrAAnalizar; // <--- 1. Añadir el callback
 
   const JardinScreen({
     Key? key,
     this.isEmbedded = false,
     this.filtroInicial = FiltroJardin.todas,
+    this.onIrAAnalizar,
   }) : super(key: key);
 
   @override
@@ -62,18 +64,12 @@ class _JardinScreenState extends State<JardinScreen>
   }
 
   Future<void> _abrirRegistro() async {
-    final creada = await Navigator.push<PlantaDetalle>(
-      context,
-      MaterialPageRoute(builder: (_) => const RegistrarPlantaScreen()),
-    );
-    if (creada != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${creada.apodo} se agregó a tu jardín'),
-          backgroundColor: AppColors.success,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+    // Si está embebido en el menú inferior, cambia a la pestaña de análisis (índice 2)
+    if (widget.onIrAAnalizar != null) {
+      widget.onIrAAnalizar!();
+    } else {
+      // Fallback por si se abrió de forma independiente
+      Navigator.pushNamed(context, AppRoutes.uploadPlant);
     }
   }
 
@@ -383,21 +379,15 @@ class _JardinScreenState extends State<JardinScreen>
                         actividadProv.cargar(silencioso: true),
                         perfilProv.cargar(silencioso: true),
                       ]);
-                    }
-
-                    if (!mounted) return;
-                    messenger.showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          ok
-                              ? '${planta.apodo} se eliminó del jardín'
-                              : plantaProv.error ?? 'No se pudo eliminar',
+                    } else {
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text(plantaProv.error ?? 'No se pudo eliminar'),
+                          backgroundColor: AppColors.error,
+                          behavior: SnackBarBehavior.floating,
                         ),
-                        backgroundColor:
-                        ok ? AppColors.textSecondary : AppColors.error,
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
+                      );
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.error,

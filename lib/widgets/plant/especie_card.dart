@@ -4,12 +4,6 @@ import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../models/especie.dart';
 
-/// Fila de la lista de la Guia.
-///
-/// Estructura:
-/// - Imagen a la izquierda (centrada verticalmente, 64x64)
-/// - Todo el contenido a la derecha: nombre + especie + badges + descripcion
-/// - Flechita de navegación al final
 class EspecieCard extends StatelessWidget {
   final Especie especie;
   final VoidCallback onTap;
@@ -20,18 +14,29 @@ class EspecieCard extends StatelessWidget {
     required this.onTap,
   }) : super(key: key);
 
+  Color _colorDificultad(String dif) {
+    final lower = dif.toLowerCase();
+    if (lower.contains('fácil') || lower.contains('facil')) {
+      return AppColors.success;
+    } else if (lower.contains('difícil') || lower.contains('dificil')) {
+      return AppColors.error;
+    }
+    return AppColors.warning;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorDif = _colorDificultad(especie.dificultad.etiqueta);
 
     return Container(
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
-            blurRadius: 6,
+            color: Colors.black.withOpacity(isDark ? 0.25 : 0.04),
+            blurRadius: 8,
             offset: const Offset(0, 3),
           ),
         ],
@@ -40,116 +45,101 @@ class EspecieCard extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
-          child: Padding(
-            padding: const EdgeInsets.all(10),
+          borderRadius: BorderRadius.circular(16),
+          child: IntrinsicHeight(
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Imagen a la izquierda (centrada verticalmente)
-                _imagen(isDark),
-                const SizedBox(width: 12),
-
-                // Todo el contenido a la derecha
+                _buildCoverImage(isDark),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Nombre + especie
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  especie.nombreComun,
-                                  style: AppTextStyles.titleMedium.copyWith(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: isDark
-                                        ? AppColors.darkTextPrimary
-                                        : AppColors.textPrimary,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  especie.nombreCientifico,
-                                  style: AppTextStyles.bodySmall.copyWith(
-                                    fontSize: 11,
-                                    fontStyle: FontStyle.italic,
-                                    color: isDark
-                                        ? AppColors.darkTextSecondary
-                                        : AppColors.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          const SizedBox(width: 6),
-
-                          // Badges arriba a la derecha
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  _chip(
-                                    Icons.water_drop_outlined,
-                                    especie.riegoTexto,
-                                    isDark,
+                                  Text(
+                                    especie.nombreComun,
+                                    style: AppTextStyles.titleMedium.copyWith(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: isDark
+                                          ? AppColors.darkTextPrimary
+                                          : AppColors.textPrimary,
+                                    ),
                                   ),
-                                  const SizedBox(width: 4),
-                                  _chip(
-                                    Icons.bar_chart,
-                                    especie.dificultad.etiqueta,
-                                    isDark,
+                                  const SizedBox(height: 1),
+                                  Text(
+                                    especie.nombreCientifico,
+                                    style: AppTextStyles.bodySmall.copyWith(
+                                      fontSize: 12,
+                                      fontStyle: FontStyle.italic,
+                                      color: isDark
+                                          ? AppColors.darkTextSecondary
+                                          : AppColors.textSecondary,
+                                    ),
                                   ),
                                 ],
                               ),
-                              if (!especie.diagnosticable) ...[
-                                const SizedBox(height: 4),
-                                _chip(
-                                  Icons.no_photography_outlined,
-                                  'Sin diagnóstico',
-                                  isDark,
-                                ),
-                              ],
-                            ],
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 6),
-
-                      // Descripción (2 líneas máx)
-                      Text(
-                        especie.resumen,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTextStyles.bodySmall.copyWith(
-                          fontSize: 11,
-                          height: 1.3,
-                          color: isDark
-                              ? AppColors.darkTextSecondary
-                              : AppColors.textSecondary,
+                            ),
+                            Icon(
+                              Icons.chevron_right_rounded,
+                              size: 22,
+                              color: isDark
+                                  ? AppColors.darkTextTertiary
+                                  : AppColors.textTertiary,
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 6),
+                        Text(
+                          especie.resumen,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.bodySmall.copyWith(
+                            fontSize: 12,
+                            height: 1.3,
+                            color: isDark
+                                ? AppColors.darkTextSecondary
+                                : AppColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: [
+                            _chip(
+                              icon: Icons.water_drop,
+                              texto: especie.riegoTexto,
+                              color: AppColors.primary,
+                              isDark: isDark,
+                            ),
+                            _chip(
+                              icon: Icons.bar_chart_rounded,
+                              texto: especie.dificultad.etiqueta,
+                              color: colorDif,
+                              isDark: isDark,
+                            ),
+                            if (!especie.diagnosticable)
+                              _chip(
+                                icon: Icons.no_photography_outlined,
+                                texto: 'Sin diagnóstico',
+                                color: AppColors.textTertiary,
+                                isDark: isDark,
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-
-                // Flechita de navegación
-                const SizedBox(width: 6),
-                Icon(
-                  Icons.chevron_right,
-                  size: 22,
-                  color: isDark
-                      ? AppColors.darkTextTertiary
-                      : AppColors.textTertiary,
                 ),
               ],
             ),
@@ -159,44 +149,82 @@ class EspecieCard extends StatelessWidget {
     );
   }
 
-  Widget _imagen(bool isDark) {
-    return Container(
-      width: 64,
-      height: 64,
-      decoration: BoxDecoration(
+  Widget _buildCoverImage(bool isDark) {
+    final Map<String, String> imagenesLocales = {
+      'berenjena': 'assets/crops/berenjena.png',
+      'citricos': 'assets/crops/citricos.png',
+      'lechuga': 'assets/crops/lechuga.png',
+      'maiz': 'assets/crops/maiz.png',
+      'papa': 'assets/crops/papa.png',
+      'pimiento': 'assets/crops/pimiento.png',
+      'repollo': 'assets/crops/repollo.png',
+      'tomate': 'assets/crops/tomate.png',
+    };
+
+    final claveSlug = especie.slug.toLowerCase().trim();
+    final claveNombre = especie.nombreComun.toLowerCase().trim();
+
+    final assetPath = imagenesLocales[claveSlug] ?? imagenesLocales[claveNombre];
+
+    return ClipRRect(
+      borderRadius: const BorderRadius.horizontal(left: Radius.circular(16)),
+      child: Container(
+        width: 104,
         color: isDark ? AppColors.darkPrimaryBg : AppColors.primaryBg,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: especie.imagenUrl == null
-          ? const Icon(Icons.eco, size: 30, color: AppColors.primary)
-          : Image.network(
-        especie.imagenUrl!,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) =>
-        const Icon(Icons.eco, size: 30, color: AppColors.primary),
+        child: assetPath != null
+            ? Image.asset(
+          assetPath,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _fallbackIcon(),
+        )
+            : (especie.imagenUrl != null && especie.imagenUrl!.isNotEmpty)
+            ? Image.network(
+          especie.imagenUrl!,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _fallbackIcon(),
+        )
+            : _fallbackIcon(),
       ),
     );
   }
 
-  Widget _chip(IconData icono, String texto, bool isDark) {
+  Widget _fallbackIcon() {
+    return const Center(
+      child: Icon(
+        Icons.eco_rounded,
+        size: 44,
+        color: AppColors.primaryLight,
+      ),
+    );
+  }
+
+  Widget _chip({
+    required IconData icon,
+    required String texto,
+    required Color color,
+    required bool isDark,
+  }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.darkPrimaryBg : AppColors.primaryBg,
-        borderRadius: BorderRadius.circular(6),
+        color: color.withOpacity(isDark ? 0.2 : 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: color.withOpacity(0.25),
+          width: 1,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icono, size: 9, color: AppColors.primaryLight),
-          const SizedBox(width: 2),
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
           Text(
             texto,
             style: TextStyle(
-              fontSize: 8,
+              fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: isDark ? AppColors.primaryLight : AppColors.primary,
+              color: color,
             ),
           ),
         ],
