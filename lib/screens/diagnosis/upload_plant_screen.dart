@@ -93,12 +93,24 @@ class _UploadPlantScreenState extends State<UploadPlantScreen> {
 
     context.read<DiagnosticoProvider>().seleccionarImagen(_imagePath);
 
-    // Si viene del jardín, pasar el ID de la planta
+    // Si viene del jardín o es revisión, pasar el ID de la planta
     if (_plantId != null) {
       context.read<DiagnosticoProvider>().fijarPlanta(_plantId);
     }
 
-    Navigator.pushNamed(context, AppRoutes.analyzing);
+    // 🚀 RECUPERAR EL ARGUMENTO DE REVISIÓN ACTUAL
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final esRevision = args?['esRevision'] as bool? ?? false;
+
+    // 🚀 PASAR TANTO EL plantId COMO LA BANDERA esRevision HACIA LA PANTALLA DE ANÁLISIS
+    Navigator.pushNamed(
+      context,
+      AppRoutes.analyzing,
+      arguments: {
+        'plantId': _plantId,
+        'esRevision': esRevision,
+      },
+    );
   }
 
   void _showError(String message) {
@@ -136,7 +148,7 @@ class _UploadPlantScreenState extends State<UploadPlantScreen> {
             children: [
               if (widget.isEmbedded) ...[
                 Text(
-                  'Analizar cultivo',
+                  'Analizar planta',
                   style: AppTextStyles.headlineMedium.copyWith(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -150,7 +162,7 @@ class _UploadPlantScreenState extends State<UploadPlantScreen> {
               Text(
                 _plantId != null
                     ? 'Sube una nueva foto para el seguimiento'
-                    : 'Sube una foto de tu cultivo',
+                    : 'Sube una foto de tu planta',
                 style: AppTextStyles.headlineMedium.copyWith(
                   fontSize: 18,
                   color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,

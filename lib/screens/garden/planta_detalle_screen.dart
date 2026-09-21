@@ -1,8 +1,10 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_linkify/flutter_linkify.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/routes.dart';
 import '../../app/theme/app_colors.dart';
@@ -42,23 +44,39 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await context.read<PlantaProvider>().cargarDetalle(widget.plantaId);
+    _cargarDatosPlanta();
+  }
 
-      // Si viene desde la actividad de tratamiento, hace scroll suave a la sección
-      if (widget.enfocarCuidados && mounted) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          final targetContext = _cuidadosKey.currentContext;
-          if (targetContext != null) {
-            Scrollable.ensureVisible(
-              targetContext,
-              duration: const Duration(milliseconds: 600),
-              curve: Curves.easeInOut,
-            );
-          }
-        });
-      }
-    });
+  @override
+  void didUpdateWidget(covariant PlantaDetalleScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Si la pantalla recibe un ID de planta diferente, reseteamos el nombre local y recargamos
+    if (oldWidget.plantaId != widget.plantaId) {
+      setState(() {
+        _plantName = '';
+      });
+      _cargarDatosPlanta();
+    }
+  }
+
+  Future<void> _cargarDatosPlanta() async {
+    final provider = context.read<PlantaProvider>();
+    provider.limpiarDetalle();
+    await provider.cargarDetalle(widget.plantaId);
+
+    // Si viene desde la actividad de tratamiento, hace scroll suave a la sección
+    if (widget.enfocarCuidados && mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final targetContext = _cuidadosKey.currentContext;
+        if (targetContext != null) {
+          Scrollable.ensureVisible(
+            targetContext,
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.easeInOut,
+          );
+        }
+      });
+    }
   }
 
   @override
@@ -75,8 +93,8 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
     final provider = context.watch<PlantaProvider>();
     final planta = provider.detalle;
 
-    // Actualiza el nombre local cuando cargue la planta
-    if (planta != null && _plantName.isEmpty) {
+    // Actualiza el nombre local y el controlador cuando cargue la planta correcta
+    if (planta != null && (_plantName.isEmpty || _nameController.text != planta.apodo)) {
       _plantName = planta.apodo;
       _nameController.text = planta.apodo;
     }
@@ -117,7 +135,7 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
     if (provider.errorDetalle != null) {
       return ErrorView(
         message: provider.errorDetalle!,
-        onRetry: () => provider.cargarDetalle(widget.plantaId),
+        onRetry: () => _cargarDatosPlanta(),
       );
     }
 
@@ -126,7 +144,7 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
     final diagnosticos = planta.diagnosticos;
 
     return RefreshIndicator(
-      onRefresh: () => provider.cargarDetalle(widget.plantaId),
+      onRefresh: () => _cargarDatosPlanta(),
       child: SingleChildScrollView(
         controller: _scrollController,
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
@@ -135,7 +153,7 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
           children: [
             // 1. Header con gradiente + foto + nombre + especie + estado
             _buildPlantHeader(isDark, planta),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
             // 2. Card de riego
             _tarjetaRiego(planta, isDark),
@@ -144,7 +162,7 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
             // 3. Info del backend (ubicación, etapa, último riego)
             _datos(planta, isDark),
 
-            // 4. Cuidados y Tratamiento (con GlobalKey para auto-scroll)
+            // 4. Cuidados y Tratamiento (con GlobalKey para auto-scroll y enlaces interactivos)
             Container(
               key: _cuidadosKey,
               child: Column(
@@ -383,6 +401,13 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
         color: color.withOpacity(0.08),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: color.withOpacity(0.25)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -426,11 +451,13 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
             'Ubicación',
             planta.ubicacion.etiqueta,
           ),
+          const SizedBox(height: 10),
           _fila(
             Icons.timeline_outlined,
             'Etapa',
             planta.etapa.etiqueta,
           ),
+          const SizedBox(height: 10),
           _fila(
             Icons.water_drop_outlined,
             'Último riego',
@@ -444,30 +471,26 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
   }
 
   Widget _fila(IconData icono, String etiqueta, String valor) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Icon(icono, size: 18, color: AppColors.textTertiary),
-          const SizedBox(width: 12),
-          Text(
-            etiqueta,
-            style: AppTextStyles.bodyMedium
-                .copyWith(color: AppColors.textSecondary),
-          ),
-          const Spacer(),
-          Flexible(
-            child: Text(
-              valor,
-              textAlign: TextAlign.right,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.bodyMedium
-                  .copyWith(fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
+    return Row(
+      children: [
+        SizedBox(
+          width: 24,
+          child: Icon(icono, size: 18, color: AppColors.textTertiary),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          etiqueta,
+          style: AppTextStyles.bodyMedium
+              .copyWith(color: AppColors.textSecondary),
+        ),
+        const Spacer(),
+        Text(
+          valor,
+          textAlign: TextAlign.right,
+          style: AppTextStyles.bodyMedium
+              .copyWith(fontWeight: FontWeight.w600),
+        ),
+      ],
     );
   }
 
@@ -485,7 +508,14 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
         borderRadius: BorderRadius.circular(14),
         border: highlighted
             ? Border.all(color: AppColors.primaryLight, width: 2)
-            : null,
+            : Border.all(color: Colors.grey.withOpacity(0.15)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -527,8 +557,24 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
                 color: AppColors.primaryLight,
               ),
             ),
-            const SizedBox(height: 2),
-            Text(planta.otrosCuidados!, style: AppTextStyles.bodyMedium),
+            const SizedBox(height: 4),
+            Linkify(
+              onOpen: (link) async {
+                final Uri url = Uri.parse(link.url);
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                }
+              },
+              text: planta.otrosCuidados!.replaceAll(r'\n', '\n'),
+              style: AppTextStyles.bodyMedium.copyWith(
+                height: 1.5,
+                color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+              ),
+              linkStyle: const TextStyle(
+                color: Colors.blue,
+                decoration: TextDecoration.none,
+              ),
+            ),
           ],
         ],
       ),
@@ -536,7 +582,7 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
   }
 
   // ═══════════════════════════════════════════════════════════
-  // DIAGNÓSTICOS
+  // DIAGNÓSTICOS Y DEMÁS MÉTODOS...
   // ═══════════════════════════════════════════════════════════
   Widget _buildEmptyDiagnoses(bool isDark) {
     return Container(
@@ -713,9 +759,6 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // ACCIONES
-  // ═══════════════════════════════════════════════════════════
   void _startNewDiagnosis() {
     Navigator.pushNamed(
       context,
@@ -983,9 +1026,6 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
       );
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // HELPERS
-  // ═══════════════════════════════════════════════════════════
   Widget _tarjeta(bool isDark, {required Widget child}) {
     return Container(
       width: double.infinity,
@@ -993,6 +1033,13 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : AppColors.surface,
         borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: child,
     );

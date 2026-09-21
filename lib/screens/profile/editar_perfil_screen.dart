@@ -25,10 +25,9 @@ class EditarPerfilScreen extends StatefulWidget {
 class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nombreCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
   final ImagePicker _picker = ImagePicker();
 
-  String? _distrito;
-  bool _notificaciones = true;
   bool _iniciado = false;
   File? _nuevaFotoFile;
 
@@ -43,21 +42,18 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   @override
   void dispose() {
     _nombreCtrl.dispose();
+    _emailCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _cargarDatos() async {
-    final provider = context.read<PerfilProvider>();
-    await provider.cargarDistritos();
-
-    final perfil = provider.perfil;
+    final perfil = context.read<PerfilProvider>().perfil;
     if (!mounted) return;
 
     setState(() {
       if (perfil != null) {
         _nombreCtrl.text = perfil.nombre;
-        _distrito = perfil.distrito;
-        _notificaciones = perfil.notificaciones;
+        _emailCtrl.text = perfil.email;
       }
       _iniciado = true;
     });
@@ -71,7 +67,6 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     final perfil = provider.perfil;
     if (perfil == null) return;
 
-    // 1. Si el usuario seleccionó o recortó una nueva foto, se sube al backend
     if (_nuevaFotoFile != null) {
       final subidaOk = await provider.cambiarFoto(_nuevaFotoFile!);
       if (!subidaOk && mounted) {
@@ -89,14 +84,10 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
       }
     }
 
-    // 2. Modificación de campos de texto
     final form = PerfilForm(
       nombre: _nombreCtrl.text.trim() == perfil.nombre
           ? null
           : _nombreCtrl.text.trim(),
-      distrito: _distrito == perfil.distrito ? null : _distrito,
-      notificaciones:
-      _notificaciones == perfil.notificaciones ? null : _notificaciones,
     );
 
     if (!form.vacio) {
@@ -122,6 +113,270 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
       context.read<AuthProvider>().actualizarUsuario(actualizado.usuario);
       Navigator.pop(context, true);
     }
+  }
+
+  Future<void> _dialogoPassword() async {
+    final actualCtrl = TextEditingController();
+    final nuevaCtrl = TextEditingController();
+    final formKeyDialog = GlobalKey<FormState>();
+
+    bool ocultarActual = true;
+    bool ocultarNueva = true;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (ctx, setStateDialog) {
+          final isDark = Theme.of(dialogCtx).brightness == Brightness.dark;
+
+          return AlertDialog(
+            backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            contentPadding: const EdgeInsets.fromLTRB(20, 24, 20, 18),
+            content: Form(
+              key: formKeyDialog,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryLight.withOpacity(0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.lock_reset_rounded,
+                      color: AppColors.primaryLight,
+                      size: 32,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Cambiar contraseña',
+                    style: AppTextStyles.titleMedium.copyWith(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: isDark
+                          ? AppColors.darkTextPrimary
+                          : AppColors.textPrimary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Ingresa tu contraseña actual y define una nueva de al menos 8 caracteres.',
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      fontSize: 12.5,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.textSecondary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  TextFormField(
+                    controller: actualCtrl,
+                    obscureText: ocultarActual,
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      fontSize: 14,
+                      color: isDark
+                          ? AppColors.darkTextPrimary
+                          : AppColors.textPrimary,
+                    ),
+                    decoration: InputDecoration(
+                      labelText: 'Contraseña actual',
+                      prefixIcon: const Icon(Icons.lock_outline, size: 20),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          ocultarActual
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                          size: 20,
+                        ),
+                        onPressed: () => setStateDialog(
+                                () => ocultarActual = !ocultarActual),
+                      ),
+                      filled: true,
+                      fillColor: isDark
+                          ? AppColors.darkBackground
+                          : const Color(0xFFF7F7F7),
+                      contentPadding: const EdgeInsets.symmetric(
+                          vertical: 12, horizontal: 16),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: isDark
+                              ? const Color(0xFF383838)
+                              : const Color(0xFFE0E0E0),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: AppColors.primaryLight,
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+                    validator: (v) => (v ?? '').isEmpty
+                        ? 'Ingresa tu contraseña actual'
+                        : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: nuevaCtrl,
+                    obscureText: ocultarNueva,
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      fontSize: 14,
+                      color: isDark
+                          ? AppColors.darkTextPrimary
+                          : AppColors.textPrimary,
+                    ),
+                    decoration: InputDecoration(
+                      labelText: 'Contraseña nueva',
+                      prefixIcon: const Icon(Icons.key_outlined, size: 20),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          ocultarNueva
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                          size: 20,
+                        ),
+                        onPressed: () => setStateDialog(
+                                () => ocultarNueva = !ocultarNueva),
+                      ),
+                      filled: true,
+                      fillColor: isDark
+                          ? AppColors.darkBackground
+                          : const Color(0xFFF7F7F7),
+                      contentPadding: const EdgeInsets.symmetric(
+                          vertical: 12, horizontal: 16),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: isDark
+                              ? const Color(0xFF383838)
+                              : const Color(0xFFE0E0E0),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: AppColors.primaryLight,
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+                    validator: (v) {
+                      final texto = v ?? '';
+                      if (texto.length < 8) return 'Mínimo 8 caracteres';
+                      if (texto == actualCtrl.text) {
+                        return 'Debe ser distinta a la actual';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 22),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(dialogCtx).pop(false),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            side: BorderSide(
+                              color: isDark
+                                  ? const Color(0xFF424242)
+                                  : const Color(0xFFE0E0E0),
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text(
+                            'Cancelar',
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            if (formKeyDialog.currentState!.validate()) {
+                              Navigator.of(dialogCtx).pop(true);
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text(
+                            'Actualizar',
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+
+    actualCtrl.dispose();
+    nuevaCtrl.dispose();
+
+    if (ok != true || !mounted) return;
+
+    final provider = context.read<PerfilProvider>();
+    final exito = await provider.cambiarPassword(
+      actual: actualCtrl.text,
+      nueva: nuevaCtrl.text,
+    );
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          exito
+              ? 'Contraseña actualizada correctamente'
+              : provider.error ?? 'No se pudo cambiar',
+          textAlign: TextAlign.center,
+        ),
+        backgroundColor: exito ? AppColors.success : AppColors.error,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    provider.limpiarError();
   }
 
   Future<void> _elegirFoto() async {
@@ -152,16 +407,21 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
               Text(
                 'Cambiar foto de perfil',
                 style: AppTextStyles.titleLarge.copyWith(
-                  color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                  color: isDark
+                      ? AppColors.darkTextPrimary
+                      : AppColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 16),
               ListTile(
-                leading: const Icon(Icons.camera_alt, color: AppColors.primaryLight),
+                leading: const Icon(Icons.camera_alt,
+                    color: AppColors.primaryLight),
                 title: Text(
                   'Tomar foto',
                   style: TextStyle(
-                    color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                    color: isDark
+                        ? AppColors.darkTextPrimary
+                        : AppColors.textPrimary,
                   ),
                 ),
                 onTap: () async {
@@ -174,11 +434,14 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.photo_library, color: AppColors.primaryLight),
+                leading: const Icon(Icons.photo_library,
+                    color: AppColors.primaryLight),
                 title: Text(
                   'Elegir de galería',
                   style: TextStyle(
-                    color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                    color: isDark
+                        ? AppColors.darkTextPrimary
+                        : AppColors.textPrimary,
                   ),
                 ),
                 onTap: () async {
@@ -219,21 +482,25 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     final provider = context.watch<PerfilProvider>();
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
+      backgroundColor:
+      isDark ? AppColors.darkBackground : AppColors.background,
       appBar: AppBar(
         title: Text(
           'Editar perfil',
           style: TextStyle(
             color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+            fontWeight: FontWeight.bold,
           ),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        centerTitle: true,
       ),
       body: !_iniciado
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding:
+        const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         child: Form(
           key: _formKey,
           child: Column(
@@ -251,7 +518,8 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 32),
+
               TextFormField(
                 controller: _nombreCtrl,
                 textCapitalization: TextCapitalization.words,
@@ -259,42 +527,106 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                   color: isDark
                       ? AppColors.darkTextPrimary
                       : AppColors.textPrimary,
+                  fontSize: 14,
                 ),
                 decoration: const InputDecoration(
-                  labelText: 'Nombre',
+                  labelText: 'Nombre de usuario',
                   prefixIcon: Icon(Icons.person_outline),
                 ),
                 validator: (v) => (v ?? '').trim().isEmpty
                     ? 'Ingresa tu nombre'
                     : null,
               ),
-              const SizedBox(height: 20),
-              _selectorDistrito(provider, isDark),
-              const SizedBox(height: 20),
-              SwitchListTile(
-                value: _notificaciones,
-                onChanged: (v) => setState(() => _notificaciones = v),
-                title: Text(
-                  'Notificaciones',
-                  style: TextStyle(
-                    color: isDark
-                        ? AppColors.darkTextPrimary
-                        : AppColors.textPrimary,
-                  ),
+              const SizedBox(height: 18),
+
+              TextFormField(
+                controller: _emailCtrl,
+                enabled: false,
+                style: TextStyle(
+                  color: isDark
+                      ? AppColors.darkTextTertiary
+                      : AppColors.textTertiary,
+                  fontSize: 14,
                 ),
-                subtitle: Text(
-                  'Avisos de riego y tratamientos',
-                  style: AppTextStyles.bodySmall.copyWith(
+                decoration: InputDecoration(
+                  labelText: 'Correo electrónico',
+                  prefixIcon: const Icon(Icons.mail_outline),
+                  suffixIcon: const Icon(
+                    Icons.lock_outline,
+                    size: 18,
+                    color: AppColors.textTertiary,
+                  ),
+                  helperText:
+                  'El correo de tu cuenta no se puede modificar',
+                  helperStyle: TextStyle(
                     fontSize: 11,
                     color: isDark
-                        ? AppColors.darkTextSecondary
-                        : AppColors.textSecondary,
+                        ? AppColors.darkTextTertiary
+                        : AppColors.textTertiary,
                   ),
                 ),
-                contentPadding: EdgeInsets.zero,
-                activeColor: AppColors.primaryLight,
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
+
+              Container(
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.darkSurface : Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isDark
+                        ? const Color(0xFF383838)
+                        : const Color(0xFFE5E7EB),
+                  ),
+                ),
+                child: ListTile(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 4),
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryLight.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.lock_outline_rounded,
+                      color: AppColors.primaryLight,
+                      size: 20,
+                    ),
+                  ),
+                  title: Text(
+                    'Cambiar contraseña',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: isDark
+                          ? AppColors.darkTextPrimary
+                          : AppColors.textPrimary,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Actualiza tu clave de acceso',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      fontSize: 11.5,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.textSecondary,
+                    ),
+                  ),
+                  trailing: Icon(
+                    Icons.chevron_right_rounded,
+                    size: 22,
+                    color: isDark
+                        ? AppColors.darkTextTertiary
+                        : const Color(0xFFBDBDBD),
+                  ),
+                  onTap: _dialogoPassword,
+                ),
+              ),
+              const SizedBox(height: 36),
+
               PrimaryButton(
                 text: 'Guardar cambios',
                 isLoading: provider.guardando,
@@ -337,7 +669,8 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                     width: 3,
                   ),
                 ),
-                child: const Icon(Icons.camera_alt, size: 18, color: Colors.white),
+                child: const Icon(Icons.camera_alt,
+                    size: 18, color: Colors.white),
               ),
             ),
           ],
@@ -385,70 +718,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
       ),
     );
   }
-
-  Widget _selectorDistrito(PerfilProvider provider, bool isDark) {
-    final distritos = provider.distritos;
-
-    if (distritos.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.warning.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.info_outline, size: 18, color: AppColors.warning),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'No se pudo cargar la lista de distritos. Inténtalo más tarde.',
-                style: AppTextStyles.bodySmall.copyWith(fontSize: 12),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        DropdownButtonFormField<String>(
-          value: distritos.contains(_distrito) ? _distrito : null,
-          isExpanded: true,
-          dropdownColor: isDark ? AppColors.darkSurface : AppColors.surface,
-          style: TextStyle(
-            color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
-            fontSize: 14,
-          ),
-          decoration: const InputDecoration(
-            labelText: 'Distrito',
-            prefixIcon: Icon(Icons.place_outlined),
-          ),
-          hint: const Text('Elige tu distrito'),
-          items: distritos.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
-          onChanged: (v) => setState(() => _distrito = v),
-        ),
-        const SizedBox(height: 6),
-        Padding(
-          padding: const EdgeInsets.only(left: 4),
-          child: Text(
-            'Se usa para mostrarte dónde comprar los insumos de los tratamientos cerca de ti.',
-            style: AppTextStyles.bodySmall.copyWith(
-              fontSize: 11,
-              color: isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 }
-
-// ═══════════════════════════════════════════════════════════
-// EDITOR DE IMAGEN CIRCULAR (zoom + recorte)
-// ═══════════════════════════════════════════════════════════
 
 class _ImageEditorScreen extends StatefulWidget {
   final String imagePath;
@@ -532,7 +802,8 @@ class _ImageEditorScreenState extends State<_ImageEditorScreen> {
           icon: const Icon(Icons.close),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Ajustar foto', style: TextStyle(color: Colors.white)),
+        title: const Text('Ajustar foto',
+            style: TextStyle(color: Colors.white)),
         actions: [
           TextButton(
             onPressed: _isSaving ? null : _saveEditedImage,
@@ -541,7 +812,8 @@ class _ImageEditorScreenState extends State<_ImageEditorScreen> {
               width: 20,
               height: 20,
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryLight),
+                valueColor:
+                AlwaysStoppedAnimation<Color>(AppColors.primaryLight),
                 strokeWidth: 2,
               ),
             )
@@ -576,7 +848,8 @@ class _ImageEditorScreenState extends State<_ImageEditorScreen> {
                       child: Image.file(
                         File(widget.imagePath),
                         fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                        errorBuilder: (_, __, ___) =>
+                        const SizedBox.shrink(),
                       ),
                     ),
                   ),

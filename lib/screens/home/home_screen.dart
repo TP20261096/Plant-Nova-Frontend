@@ -53,6 +53,20 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  // Valida si la actividad corresponde al día que el usuario tiene seleccionado en el carrusel
+  bool _esActividadDelDiaSeleccionado(DateTime fechaProgramada) {
+    return fechaProgramada.year == _selectedDate.year &&
+        fechaProgramada.month == _selectedDate.month &&
+        fechaProgramada.day == _selectedDate.day;
+  }
+
+  bool _esActividadPasada(DateTime fechaProgramada) {
+    final ahora = DateTime.now();
+    final hoySinHora = DateTime(ahora.year, ahora.month, ahora.day);
+    final fechaSinHora = DateTime(fechaProgramada.year, fechaProgramada.month, fechaProgramada.day);
+    return fechaSinHora.isBefore(hoySinHora);
+  }
+
   String _formatearFechaProxima(DateTime fecha) {
     const meses = [
       'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
@@ -66,15 +80,34 @@ class _HomeScreenState extends State<HomeScreen> {
     return '$diaSemana ${fecha.day} de $mes';
   }
 
-  void _mostrarDialogoExitoTratamiento(BuildContext context, Actividad actividad) {
+  void _mostrarDialogoExitoActividad(BuildContext context, Actividad actividad) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final esRiego = actividad.tipo == TipoActividad.riego ||
+        actividad.titulo.toLowerCase().contains('riego');
+
+    int diasRiego = 3;
+    try {
+      final plantaProvider = context.read<PlantaProvider>();
+      final plantaEncontrada = plantaProvider.plantas.firstWhere(
+            (p) => p.id == actividad.plantId,
+        orElse: () => plantaProvider.plantas.first,
+      );
+      if (plantaEncontrada.riegoFrecuenciaDias != null) {
+        diasRiego = plantaEncontrada.riegoFrecuenciaDias!;
+      }
+    } catch (_) {}
+
+    final fechaProximaRiego = DateTime.now().add(Duration(days: diasRiego));
+    final fechaRiegoTexto = _formatearFechaProxima(fechaProximaRiego);
+
     final numActual = actividad.aplicacionNum ?? 1;
-    final totalAplicaciones = actividad.totalAplicaciones ?? 3;
+    final totalAplicaciones = actividad.totalAplicaciones ?? 1;
+    final esUnica = totalAplicaciones <= 1;
 
     final esBordeles = actividad.titulo.toLowerCase().contains('bordel');
     final diasIntervalo = esBordeles ? 10 : 7;
-    final fechaProxima = DateTime.now().add(Duration(days: diasIntervalo));
-    final fechaTexto = _formatearFechaProxima(fechaProxima);
+    final fechaProximaTratamiento = DateTime.now().add(Duration(days: diasIntervalo));
+    final fechaTratamientoTexto = _formatearFechaProxima(fechaProximaTratamiento);
 
     showDialog(
       context: context,
@@ -101,7 +134,9 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 14),
             Text(
-              '¡Tratamiento aplicado!',
+              esRiego
+                  ? '¡Riego registrado!'
+                  : (esUnica ? '¡Actividad completada!' : '¡Tratamiento aplicado!'),
               style: AppTextStyles.titleMedium.copyWith(
                 fontSize: 17,
                 fontWeight: FontWeight.bold,
@@ -110,7 +145,46 @@ class _HomeScreenState extends State<HomeScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
-            if (numActual < totalAplicaciones) ...[
+            if (esRiego) ...[
+              Text(
+                'Has registrado el riego de ${actividad.planta}.',
+                style: AppTextStyles.bodyMedium.copyWith(
+                  fontSize: 13,
+                  color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                ),
+                child: Center(
+                  child: Text(
+                    'Próximo riego: $fechaRiegoTexto',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.success,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ] else if (esUnica) ...[
+              Text(
+                'Has completado exitosamente la actividad de ${actividad.planta}.',
+                style: AppTextStyles.bodyMedium.copyWith(
+                  fontSize: 13,
+                  color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ] else if (numActual < totalAplicaciones) ...[
               Text(
                 'Has completado la dosis $numActual de $totalAplicaciones de ${actividad.planta}.',
                 style: AppTextStyles.bodyMedium.copyWith(
@@ -135,7 +209,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(width: 8),
                     Flexible(
                       child: Text(
-                        'Próxima dosis: $fechaTexto',
+                        'Próxima dosis: $fechaTratamientoTexto',
                         style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -171,7 +245,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(width: 8),
                     Flexible(
                       child: Text(
-                        'Revisión fitosanitaria: $fechaTexto',
+                        'Revisión fitosanitaria: $fechaTratamientoTexto',
                         style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -225,7 +299,14 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           KeyedSubtree(
             key: _tabKeys[3],
-            child: const JardinScreen(isEmbedded: true),
+            child: JardinScreen(
+              isEmbedded: true,
+              onIrAAnalizar: () {
+                setState(() {
+                  _currentIndex = 2; // <--- Cambia directamente a la sección de analizar (UploadPlantScreen)
+                });
+              },
+            ),
           ),
           KeyedSubtree(
             key: _tabKeys[4],
@@ -368,6 +449,7 @@ class _HomeScreenState extends State<HomeScreen> {
         else ...[
             ...visibles.map((actividad) {
               final estaProcesando = provider.estaCompletando(actividad.id);
+              final esDelDiaSeleccionado = _esActividadDelDiaSeleccionado(actividad.fechaProgramada);
 
               return Padding(
                 padding: const EdgeInsets.only(bottom: 4),
@@ -386,44 +468,84 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: ActividadCard(
-                      actividad: actividad,
-                      completando: estaProcesando,
-                      onTap: () =>
-                          _mostrarModalDetalleActividad(context, actividad),
-                      onCompletar: () async {
-                        HapticFeedback.lightImpact();
-                        final ok = await provider.completar(actividad);
-                        if (!mounted) return;
-                        if (ok) {
-                          context.read<PlantaProvider>().cargar(silencioso: true);
-
-                          final esTratamiento = actividad.tipo == TipoActividad.tratamiento ||
-                              actividad.tipo == TipoActividad.revision ||
-                              actividad.aplicacionNum != null ||
-                              actividad.titulo.toLowerCase().contains('solución') ||
-                              actividad.titulo.toLowerCase().contains('extracto') ||
-                              actividad.titulo.toLowerCase().contains('aplicar');
-
-                          if (esTratamiento) {
-                            _mostrarDialogoExitoTratamiento(context, actividad);
+                    child: Opacity(
+                      opacity: esDelDiaSeleccionado ? 1.0 : 0.6,
+                      child: ActividadCard(
+                        actividad: actividad,
+                        completando: estaProcesando,
+                        onTap: () =>
+                            _mostrarModalDetalleActividad(context, actividad),
+                        onCompletar: () async {
+                          if (!esDelDiaSeleccionado) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Esta actividad pertenece a otra fecha.'),
+                                backgroundColor: AppColors.warning,
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                            return;
                           }
-                        } else if (provider.error != null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(provider.error!),
-                              backgroundColor: AppColors.error,
-                            ),
+
+                          final esRevision = actividad.tipo == TipoActividad.revision ||
+                              actividad.titulo.toLowerCase().contains('revisar') ||
+                              actividad.titulo.toLowerCase().contains('captura');
+
+                          if (esRevision) {
+                            HapticFeedback.lightImpact();
+                            Navigator.pushNamed(
+                              context,
+                              AppRoutes.uploadPlant,
+                              arguments: {'plantId': actividad.plantId, 'esRevision': true},
+                            );
+                            return;
+                          }
+
+                          HapticFeedback.lightImpact();
+                          final ok = await provider.completar(actividad);
+                          if (!mounted) return;
+                          if (ok) {
+                            context.read<PlantaProvider>().cargar(silencioso: true);
+
+                            final esValida = actividad.tipo == TipoActividad.tratamiento ||
+                                actividad.tipo == TipoActividad.revision ||
+                                actividad.tipo == TipoActividad.riego ||
+                                actividad.aplicacionNum != null ||
+                                actividad.titulo.toLowerCase().contains('solución') ||
+                                actividad.titulo.toLowerCase().contains('extracto') ||
+                                actividad.titulo.toLowerCase().contains('aplicar') ||
+                                actividad.titulo.toLowerCase().contains('riego');
+
+                            if (esValida) {
+                              _mostrarDialogoExitoActividad(context, actividad);
+                            }
+                          } else if (provider.error != null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(provider.error!),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                          }
+                        },
+                        onRevisar: () {
+                          if (!esDelDiaSeleccionado) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Esta actividad pertenece a otra fecha.'),
+                                backgroundColor: AppColors.warning,
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                            return;
+                          }
+                          Navigator.pushNamed(
+                            context,
+                            AppRoutes.uploadPlant,
+                            arguments: {'plantId': actividad.plantId, 'esRevision': true},
                           );
-                        }
-                      },
-                      onRevisar: () {
-                        Navigator.pushNamed(
-                          context,
-                          AppRoutes.uploadPlant,
-                          arguments: {'plantId': actividad.plantId},
-                        );
-                      },
+                        },
+                      ),
                     ),
                   ),
                 ),
@@ -439,16 +561,22 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ═══════════════════════════════════════════════════════════
-  // MODAL DETALLE DE ACTIVIDAD (Con aviso de próxima dosis)
+  // MODAL DETALLE DE ACTIVIDAD
   // ═══════════════════════════════════════════════════════════
   void _mostrarModalDetalleActividad(BuildContext context, Actividad actividad) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final esDelDiaSeleccionado = _esActividadDelDiaSeleccionado(actividad.fechaProgramada);
+
     final esTratamiento = actividad.tipo == TipoActividad.tratamiento ||
         actividad.tipo == TipoActividad.revision ||
         actividad.aplicacionNum != null ||
         actividad.titulo.toLowerCase().contains('solución') ||
         actividad.titulo.toLowerCase().contains('extracto') ||
         actividad.titulo.toLowerCase().contains('aplicar');
+
+    final esRevision = actividad.tipo == TipoActividad.revision ||
+        actividad.titulo.toLowerCase().contains('revisar') ||
+        actividad.titulo.toLowerCase().contains('captura');
 
     showModalBottomSheet(
       context: context,
@@ -539,6 +667,36 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Advertencia si no corresponde al día seleccionado
+                      if (!esDelDiaSeleccionado) ...[
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.warning.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.lock_clock, color: AppColors.warning, size: 20),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Esta actividad está programada para el ${_formatearFechaProxima(actividad.fechaProgramada)}.',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.warning,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                      ],
+
                       // 1. INDICACIONES RÁPIDAS
                       if (actividad.descripcion != null &&
                           actividad.descripcion!.isNotEmpty) ...[
@@ -573,8 +731,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ],
 
-                      // 2. RECORDATORIO DE PRÓXIMO TRATAMIENTO / REVISIÓN
-                      if (esTratamiento) ...[
+                      // 2. RECORDATORIO DE PRÓXIMO TRATAMIENTO (SOLO SI TIENE MÚLTIPLES APLICACIONES)
+                      if (esTratamiento && actividad.totalAplicaciones != null && actividad.totalAplicaciones! > 1) ...[
                         const SizedBox(height: 12),
                         Builder(
                           builder: (context) {
@@ -584,7 +742,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             final diasIntervalo = esBordeles ? 10 : 7;
                             final proximaFecha = DateTime.now().add(Duration(days: diasIntervalo));
                             final fechaFormateada = _formatearFechaProxima(proximaFecha);
-                            final esUltimaDosis = numActual >= total;
+                            final esUltimaDosis = numActual >= total || actividad.tipo == TipoActividad.revision;
 
                             final colorBase = esUltimaDosis ? AppColors.primaryLight : AppColors.warning;
 
@@ -786,8 +944,40 @@ class _HomeScreenState extends State<HomeScreen> {
               if (!actividad.completada && !actividad.proyectada)
                 SizedBox(
                   width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () async {
+                  child: esRevision
+                      ? ElevatedButton.icon(
+                    onPressed: esDelDiaSeleccionado
+                        ? () {
+                      Navigator.pop(bottomContext);
+                      HapticFeedback.lightImpact();
+                      Navigator.pushNamed(
+                        context,
+                        AppRoutes.uploadPlant,
+                        arguments: {
+                          'plantId': actividad.plantId,
+                          'esRevision': true,
+                        },
+                      );
+                    }
+                        : null,
+                    icon: const Icon(Icons.camera_alt_outlined, size: 18),
+                    label: Text(
+                      esDelDiaSeleccionado ? 'Tomar foto de revisión' : 'Disponible el ${_formatearFechaProxima(actividad.fechaProgramada)}',
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryLight,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.grey.withOpacity(0.3),
+                      disabledForegroundColor: Colors.grey,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  )
+                      : ElevatedButton.icon(
+                    onPressed: esDelDiaSeleccionado
+                        ? () async {
                       Navigator.pop(bottomContext);
                       HapticFeedback.lightImpact();
 
@@ -796,18 +986,31 @@ class _HomeScreenState extends State<HomeScreen> {
 
                       if (!mounted || !ok) return;
 
-                      // Sincroniza estado de plantas en jardín e inicio
                       context.read<PlantaProvider>().cargar(silencioso: true);
 
-                      if (esTratamiento) {
-                        _mostrarDialogoExitoTratamiento(context, actividad);
+                      final esValida = actividad.tipo == TipoActividad.tratamiento ||
+                          actividad.tipo == TipoActividad.revision ||
+                          actividad.tipo == TipoActividad.riego ||
+                          actividad.aplicacionNum != null ||
+                          actividad.titulo.toLowerCase().contains('solución') ||
+                          actividad.titulo.toLowerCase().contains('extracto') ||
+                          actividad.titulo.toLowerCase().contains('aplicar') ||
+                          actividad.titulo.toLowerCase().contains('riego');
+
+                      if (esValida) {
+                        _mostrarDialogoExitoActividad(context, actividad);
                       }
-                    },
+                    }
+                        : null,
                     icon: const Icon(Icons.check, size: 18),
-                    label: const Text('Marcar como completada'),
+                    label: Text(
+                      esDelDiaSeleccionado ? 'Marcar como completada' : 'Disponible el ${_formatearFechaProxima(actividad.fechaProgramada)}',
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.grey.withOpacity(0.3),
+                      disabledForegroundColor: Colors.grey,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -992,29 +1195,34 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (weatherProvider.isLoading && weather == null) {
       return Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Colors.blue.shade400, Colors.blue.shade200],
+            colors: [Colors.blue.shade500, Colors.blue.shade300],
           ),
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
         ),
         child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             SizedBox(
-              width: 18,
-              height: 18,
+              width: 20,
+              height: 20,
               child: CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                strokeWidth: 2,
+                strokeWidth: 2.2,
               ),
             ),
-            SizedBox(width: 10),
+            SizedBox(width: 12),
             Text(
-              'Cargando clima...',
-              style: TextStyle(color: Colors.white, fontSize: 13),
+              'Actualizando clima...',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ],
         ),
@@ -1023,25 +1231,25 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (weather == null) {
       return Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Colors.blue.shade400, Colors.blue.shade200],
+            colors: [Colors.blue.shade500, Colors.blue.shade300],
           ),
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
         ),
         child: Row(
           children: [
-            const Icon(Icons.cloud_off, color: Colors.white, size: 26),
-            const SizedBox(width: 10),
+            const Icon(Icons.cloud_off, color: Colors.white, size: 28),
+            const SizedBox(width: 12),
             Expanded(
               child: GestureDetector(
                 onTap: () => weatherProvider.loadWeather(),
                 child: const Text(
-                  'No se pudo cargar el clima. Toca para reintentar.',
-                  style: TextStyle(color: Colors.white, fontSize: 12),
+                  'No se pudo cargar el clima. Toca aquí para reintentar.',
+                  style: TextStyle(color: Colors.white, fontSize: 13),
                 ),
               ),
             ),
@@ -1051,18 +1259,18 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Colors.blue.shade400, Colors.blue.shade200],
+          colors: [Colors.blue.shade500, Colors.blue.shade300],
         ),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.withOpacity(0.2),
-            blurRadius: 6,
+            color: Colors.blue.withOpacity(0.25),
+            blurRadius: 8,
             offset: const Offset(0, 3),
           ),
         ],
@@ -1070,39 +1278,42 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Row(
         children: [
           Container(
-            width: 42,
-            height: 42,
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.3),
+              color: Colors.white.withOpacity(0.25),
               shape: BoxShape.circle,
             ),
             child: Icon(
               _getWeatherIcon(weather.icon),
               color: Colors.white,
-              size: 24,
+              size: 28,
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   weather.cityName,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.2,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 1),
+                const SizedBox(height: 3),
                 Text(
                   '${weather.description} · ${weather.temperature.toStringAsFixed(1)}°C',
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 11,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1110,42 +1321,46 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
+          const SizedBox(width: 8),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
                     Icons.water_drop,
-                    color: Colors.white.withOpacity(0.9),
-                    size: 12,
+                    color: Colors.white.withOpacity(0.95),
+                    size: 14,
                   ),
-                  const SizedBox(width: 3),
+                  const SizedBox(width: 4),
                   Text(
                     '${weather.humidity}%',
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 4),
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
                     Icons.air,
-                    color: Colors.white.withOpacity(0.9),
-                    size: 12,
+                    color: Colors.white.withOpacity(0.95),
+                    size: 14,
                   ),
-                  const SizedBox(width: 3),
+                  const SizedBox(width: 4),
                   Text(
                     '${(weather.windSpeed * 3.6).toStringAsFixed(0)} km/h',
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ],
@@ -1319,8 +1534,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 Text(
                   label,
                   style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
                     color: color,
                     height: 1.2,
                   ),
@@ -1408,9 +1623,9 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           SizedBox(
-            height: 68,
+            height: 72,
             child: PageView.builder(
-              controller: PageController(viewportFraction: 0.95),
+              controller: PageController(viewportFraction: 1.0),
               itemCount: consejos.length,
               itemBuilder: (context, index) {
                 final consejo = consejos[index];
@@ -1435,7 +1650,7 @@ class _HomeScreenState extends State<HomeScreen> {
         required String texto,
       }) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 3),
+      margin: const EdgeInsets.symmetric(horizontal: 2),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkPrimaryBg : AppColors.primaryBg,
@@ -1527,12 +1742,11 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 2),
           Text(
-            'Descansa o adelanta otras tareas',
+            'Registra una planta para tener actividades',
             style: AppTextStyles.bodySmall.copyWith(
-              fontSize: 10,
-              color: isDark
-                  ? AppColors.darkTextSecondary
-                  : AppColors.textSecondary,
+              fontSize: 12,
+              color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+              fontWeight: FontWeight.w500,
             ),
             textAlign: TextAlign.center,
           ),

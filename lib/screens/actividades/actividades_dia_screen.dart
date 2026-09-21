@@ -49,15 +49,35 @@ class _ActividadesDiaScreenState extends State<ActividadesDiaScreen> {
     return '$diaSemana ${fecha.day} de $mes';
   }
 
-  void _mostrarDialogoExitoTratamiento(BuildContext context, Actividad actividad) {
+  void _mostrarDialogoExitoActividad(BuildContext context, Actividad actividad) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final esRiego = actividad.tipo == TipoActividad.riego ||
+        actividad.titulo.toLowerCase().contains('riego');
+
+    // Buscar la frecuencia de riego de la planta específica si está disponible en el provider
+    int diasRiego = 3; // Valor por defecto genérico
+    try {
+      final plantaProvider = context.read<PlantaProvider>();
+      final plantaEncontrada = plantaProvider.plantas.firstWhere(
+            (p) => p.id == actividad.plantId,
+        orElse: () => plantaProvider.plantas.first,
+      );
+      if (plantaEncontrada.riegoFrecuenciaDias != null) {
+        diasRiego = plantaEncontrada.riegoFrecuenciaDias!;
+      }
+    } catch (_) {}
+
+    final fechaProximaRiego = DateTime.now().add(Duration(days: diasRiego));
+    final fechaRiegoTexto = _formatearFechaProxima(fechaProximaRiego);
+
     final numActual = actividad.aplicacionNum ?? 1;
-    final totalAplicaciones = actividad.totalAplicaciones ?? 3;
+    final totalAplicaciones = actividad.totalAplicaciones ?? 1;
+    final esUnica = totalAplicaciones <= 1;
 
     final esBordeles = actividad.titulo.toLowerCase().contains('bordel');
     final diasIntervalo = esBordeles ? 10 : 7;
-    final fechaProxima = DateTime.now().add(Duration(days: diasIntervalo));
-    final fechaTexto = _formatearFechaProxima(fechaProxima);
+    final fechaProximaTratamiento = DateTime.now().add(Duration(days: diasIntervalo));
+    final fechaTratamientoTexto = _formatearFechaProxima(fechaProximaTratamiento);
 
     showDialog(
       context: context,
@@ -84,7 +104,9 @@ class _ActividadesDiaScreenState extends State<ActividadesDiaScreen> {
             ),
             const SizedBox(height: 14),
             Text(
-              '¡Tratamiento aplicado!',
+              esRiego
+                  ? '¡Riego registrado!'
+                  : (esUnica ? '¡Actividad completada!' : '¡Tratamiento aplicado!'),
               style: AppTextStyles.titleMedium.copyWith(
                 fontSize: 17,
                 fontWeight: FontWeight.bold,
@@ -93,7 +115,46 @@ class _ActividadesDiaScreenState extends State<ActividadesDiaScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
-            if (numActual < totalAplicaciones) ...[
+            if (esRiego) ...[
+              Text(
+                'Has registrado el riego de ${actividad.planta}.',
+                style: AppTextStyles.bodyMedium.copyWith(
+                  fontSize: 13,
+                  color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                ),
+                child: Center(
+                  child: Text(
+                    'Próximo riego: $fechaRiegoTexto',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.success,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ] else if (esUnica) ...[
+              Text(
+                'Has completado exitosamente la actividad de ${actividad.planta}.',
+                style: AppTextStyles.bodyMedium.copyWith(
+                  fontSize: 13,
+                  color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ] else if (numActual < totalAplicaciones) ...[
               Text(
                 'Has completado la dosis $numActual de $totalAplicaciones de ${actividad.planta}.',
                 style: AppTextStyles.bodyMedium.copyWith(
@@ -118,7 +179,7 @@ class _ActividadesDiaScreenState extends State<ActividadesDiaScreen> {
                     const SizedBox(width: 8),
                     Flexible(
                       child: Text(
-                        'Próxima dosis: $fechaTexto',
+                        'Próxima dosis: $fechaTratamientoTexto',
                         style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -154,7 +215,7 @@ class _ActividadesDiaScreenState extends State<ActividadesDiaScreen> {
                     const SizedBox(width: 8),
                     Flexible(
                       child: Text(
-                        'Revisión fitosanitaria: $fechaTexto',
+                        'Revisión fitosanitaria: $fechaTratamientoTexto',
                         style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -360,15 +421,17 @@ class _ActividadesDiaScreenState extends State<ActividadesDiaScreen> {
               if (ok) {
                 context.read<PlantaProvider>().cargar(silencioso: true);
 
-                final esTratamiento = actividad.tipo == TipoActividad.tratamiento ||
+                final esValida = actividad.tipo == TipoActividad.tratamiento ||
                     actividad.tipo == TipoActividad.revision ||
+                    actividad.tipo == TipoActividad.riego ||
                     actividad.aplicacionNum != null ||
                     actividad.titulo.toLowerCase().contains('solución') ||
                     actividad.titulo.toLowerCase().contains('extracto') ||
-                    actividad.titulo.toLowerCase().contains('aplicar');
+                    actividad.titulo.toLowerCase().contains('aplicar') ||
+                    actividad.titulo.toLowerCase().contains('riego');
 
-                if (esTratamiento) {
-                  _mostrarDialogoExitoTratamiento(context, actividad);
+                if (esValida) {
+                  _mostrarDialogoExitoActividad(context, actividad);
                 }
               } else if (provider.error != null) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -527,8 +590,8 @@ class _ActividadesDiaScreenState extends State<ActividadesDiaScreen> {
                         ),
                       ],
 
-                      // 2. RECORDATORIO DE PRÓXIMO TRATAMIENTO / REVISIÓN
-                      if (esTratamiento) ...[
+                      // 2. RECORDATORIO DE PRÓXIMO TRATAMIENTO (SOLO SI TIENE MÚLTIPLES APLICACIONES)
+                      if (esTratamiento && actividad.totalAplicaciones != null && actividad.totalAplicaciones! > 1) ...[
                         const SizedBox(height: 12),
                         Builder(
                           builder: (context) {
@@ -538,7 +601,7 @@ class _ActividadesDiaScreenState extends State<ActividadesDiaScreen> {
                             final diasIntervalo = esBordeles ? 10 : 7;
                             final proximaFecha = DateTime.now().add(Duration(days: diasIntervalo));
                             final fechaFormateada = _formatearFechaProxima(proximaFecha);
-                            final esUltimaDosis = numActual >= total;
+                            final esUltimaDosis = numActual >= total || actividad.tipo == TipoActividad.revision;
 
                             final colorBase = esUltimaDosis ? AppColors.primaryLight : AppColors.warning;
 
@@ -740,8 +803,17 @@ class _ActividadesDiaScreenState extends State<ActividadesDiaScreen> {
 
                       context.read<PlantaProvider>().cargar(silencioso: true);
 
-                      if (esTratamiento) {
-                        _mostrarDialogoExitoTratamiento(context, actividad);
+                      final esValida = actividad.tipo == TipoActividad.tratamiento ||
+                          actividad.tipo == TipoActividad.revision ||
+                          actividad.tipo == TipoActividad.riego ||
+                          actividad.aplicacionNum != null ||
+                          actividad.titulo.toLowerCase().contains('solución') ||
+                          actividad.titulo.toLowerCase().contains('extracto') ||
+                          actividad.titulo.toLowerCase().contains('aplicar') ||
+                          actividad.titulo.toLowerCase().contains('riego');
+
+                      if (esValida) {
+                        _mostrarDialogoExitoActividad(context, actividad);
                       }
                     },
                     icon: const Icon(Icons.check, size: 18),

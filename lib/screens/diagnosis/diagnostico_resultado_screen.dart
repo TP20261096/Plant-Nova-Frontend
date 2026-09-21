@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
+import 'package:flutter_linkify/flutter_linkify.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../app/routes.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_text_styles.dart';
@@ -33,6 +34,7 @@ class _DiagnosticoResultadoScreenState
     extends State<DiagnosticoResultadoScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  bool _esRevisionActiva = false;
 
   @override
   void initState() {
@@ -43,6 +45,12 @@ class _DiagnosticoResultadoScreenState
       final args =
       ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
       final tabInicial = args?['tabInicial'] as int? ?? 0;
+      final esRevisionArg = args?['esRevision'] as bool? ?? false;
+
+      setState(() {
+        _esRevisionActiva = esRevisionArg; // Estrictamente controlado por el flujo de tareas
+      });
+
       if (tabInicial > 0 && tabInicial < _tabController.length) {
         _tabController.animateTo(tabInicial);
       }
@@ -67,6 +75,9 @@ class _DiagnosticoResultadoScreenState
         body: const Center(child: Text('No hay diagnóstico que mostrar.')),
       );
     }
+
+    // Solo mostramos barra inferior si es una revisión activa o si es un diagnóstico nuevo sin vincular
+    final mostrarAccion = _esRevisionActiva || !d.estaVinculado;
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
@@ -105,7 +116,7 @@ class _DiagnosticoResultadoScreenState
               ],
             ),
           ),
-          if (!d.estaVinculado)
+          if (mostrarAccion)
             Container(
               padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
               decoration: BoxDecoration(
@@ -203,6 +214,10 @@ class _DiagnosticoResultadoScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (d.esIncurable) ...[
+            _bannerIncurable(d),
+            const SizedBox(height: 8),
+          ],
           _TratamientoCard(
             tratamiento: ideal,
             principal: true,
@@ -225,10 +240,56 @@ class _DiagnosticoResultadoScreenState
                   (t) => _TratamientoCard(tratamiento: t, principal: false),
             ),
           ],
-          if (d.insumosNoCaseros.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            _insumos(d, isDark),
-          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _bannerIncurable(Diagnostico d) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.amber.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.amber.shade400),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.warning_amber_rounded, color: Colors.amber.shade900, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Enfermedad sin cura casera',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: Colors.amber.shade900,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                const Text(
+                  'No apliques preparados buscando salvar hojas muy dañadas. Se debe retirar el material infectado y desinfectar herramientas.',
+                  style: TextStyle(fontSize: 11.5, color: Colors.black87, height: 1.3),
+                ),
+                if (d.requiereReporteSenasa) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    '⚠️ Alerta sanitaria: Plaga bajo vigilancia oficial. Comuníquese con SENASA Perú.',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red.shade900,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -604,85 +665,25 @@ class _DiagnosticoResultadoScreenState
           ],
           if (d.otrosCuidados != null) ...[
             const SizedBox(height: 6),
-            Text(
-              d.otrosCuidados!,
-              style:
-              AppTextStyles.bodyMedium.copyWith(height: 1.5, fontSize: 13),
+            Linkify(
+              onOpen: (link) async {
+                final Uri url = Uri.parse(link.url);
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                }
+              },
+              text: d.otrosCuidados!.replaceAll(r'\n', '\n'),
+              style: AppTextStyles.bodyMedium.copyWith(
+                height: 1.5,
+                fontSize: 13,
+                color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+              ),
+              linkStyle: const TextStyle(
+                color: Colors.blue,
+                decoration: TextDecoration.none,
+              ),
             ),
           ],
-        ],
-      ),
-    );
-  }
-
-  Widget _insumos(Diagnostico d, bool isDark) {
-    return _tarjeta(
-      isDark,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 26,
-                height: 26,
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.store_outlined,
-                    size: 15, color: AppColors.primary),
-              ),
-              const SizedBox(width: 8),
-              Text('Dónde comprar',
-                  style: AppTextStyles.titleMedium.copyWith(fontSize: 14)),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ...d.insumosNoCaseros.map(
-                (i) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    i.producto,
-                    style: AppTextStyles.bodyMedium.copyWith(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                  ),
-                  if (i.presentacion != null)
-                    Text(
-                      i.presentacion!,
-                      style: AppTextStyles.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
-                        fontSize: 11,
-                      ),
-                    ),
-                  if (i.dondeComprar != null)
-                    Text(
-                      i.distrito == null
-                          ? i.dondeComprar!
-                          : '${i.dondeComprar!} · ${i.distrito!}',
-                      style: AppTextStyles.bodySmall.copyWith(
-                        color: AppColors.textTertiary,
-                        fontSize: 11,
-                      ),
-                    ),
-                  if (i.precioReferencial != null)
-                    Text(
-                      i.precioReferencial!,
-                      style: AppTextStyles.bodySmall.copyWith(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 11,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -693,16 +694,160 @@ class _DiagnosticoResultadoScreenState
       Diagnostico d,
       DiagnosticoProvider provider,
       ) {
-    if (d.estaVinculado) {
+    // Si no está vinculado en absoluto (diagnóstico nuevo de cámara libre)
+    if (!d.estaVinculado) {
+      return PrimaryButton(
+        text: 'Guardar en mi jardín',
+        icon: Icons.eco,
+        isLoading: provider.vinculando,
+        onPressed: () => _elegirPlanta(context, provider),
+      );
+    }
+
+    // Si está vinculado pero NO viene de una revisión activa (lo abrieron desde el historial del jardín),
+    // no se muestra ningún botón.
+    if (!_esRevisionActiva) {
       return const SizedBox.shrink();
     }
 
-    return PrimaryButton(
-      text: 'Guardar en mi jardín',
-      icon: Icons.eco,
-      isLoading: provider.vinculando,
-      onPressed: () => _elegirPlanta(context, provider),
+    // Si SÍ es una revisión activa recién tomada desde las tareas, mostramos los dos caminos:
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: () => _manejarFlujoSeguimiento(context, d),
+        icon: Icon(
+          d.estaSana ? Icons.celebration : Icons.refresh,
+          size: 18,
+        ),
+        label: Text(
+          d.estaSana ? '¡Planta recuperada!' : 'Continuar con el tratamiento',
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: d.estaSana ? AppColors.success : AppColors.primary,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
     );
+  }
+
+  Future<void> _manejarFlujoSeguimiento(BuildContext context, Diagnostico d) async {
+    if (d.estaSana) {
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogCtx) {
+          final isDarkModal = Theme.of(dialogCtx).brightness == Brightness.dark;
+          return AlertDialog(
+            backgroundColor: isDarkModal ? AppColors.darkSurface : AppColors.surface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            contentPadding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Icono con contenedor circular brillante
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withOpacity(0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.celebration_rounded,
+                      color: AppColors.success,
+                      size: 42,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  '¡Planta Recuperada!',
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.titleMedium.copyWith(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: isDarkModal ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  '¡Excelente trabajo! Has completado todas las revisiones y tu planta se encuentra sana y fuerte en tu jardín.',
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    fontSize: 13.5,
+                    height: 1.4,
+                    color: isDarkModal ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(dialogCtx);
+                      Navigator.pushNamedAndRemoveUntil(
+                        context,
+                        AppRoutes.home,
+                            (_) => false,
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.success,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: const Text(
+                      'Volver al inicio',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    } else {
+      // También mejoramos el SnackBar cuando continúa con el tratamiento
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: const [
+              Icon(Icons.event_note, color: Colors.white),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  '¡Ciclo de tratamiento actualizado en tus actividades!',
+                  style: TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: AppColors.primary,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.home,
+            (_) => false,
+      );
+    }
   }
 
   Future<void> _elegirPlanta(
@@ -1182,36 +1327,29 @@ class _TratamientoCardState extends State<_TratamientoCard> {
                         size: 16, color: AppColors.warning),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        t.precauciones!,
-                        style: AppTextStyles.bodySmall
-                            .copyWith(height: 1.4, fontSize: 11),
+                      child: Linkify(
+                        onOpen: (link) async {
+                          final Uri url = Uri.parse(link.url);
+                          if (await canLaunchUrl(url)) {
+                            await launchUrl(
+                              url,
+                              mode: LaunchMode.externalApplication,
+                            );
+                          }
+                        },
+                        text: t.precauciones!.replaceAll(r'\n', '\n'),
+                        style: AppTextStyles.bodySmall.copyWith(
+                          fontSize: 11,
+                          height: 1.4,
+                          color: Colors.black87,
+                        ),
+                        linkStyle: const TextStyle(
+                          color: Colors.blue,
+                          decoration: TextDecoration.none,
+                        ),
                       ),
                     ),
                   ],
-                ),
-              ),
-            ],
-            if (t.costoAprox != null) ...[
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  const Icon(Icons.payments_outlined,
-                      size: 14, color: AppColors.textTertiary),
-                  const SizedBox(width: 6),
-                  Text('Costo aproximado: ${t.costoAprox!}',
-                      style: AppTextStyles.bodySmall.copyWith(fontSize: 11)),
-                ],
-              ),
-            ],
-            if (t.nota != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                t.nota!,
-                style: AppTextStyles.bodySmall.copyWith(
-                  fontStyle: FontStyle.italic,
-                  color: AppColors.textTertiary,
-                  fontSize: 11,
                 ),
               ),
             ],
@@ -1237,9 +1375,6 @@ class _TratamientoCardState extends State<_TratamientoCard> {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// MODAL: GUARDAR PLANTA
-// ═══════════════════════════════════════════════════════════════
 class _ModalGuardarPlantaConDiagnostico extends StatefulWidget {
   final Diagnostico diagnostico;
   final List<Planta> plantasExistentes;

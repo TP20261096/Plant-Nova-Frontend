@@ -31,6 +31,9 @@ class Planta {
   /// Días restantes calculados directamente por el backend si están disponibles.
   final int? diasParaTratamientoBackend;
 
+  /// Tipo de proceso actual ('Tratamiento', 'Revision' o 'RevisionCompletada')
+  final String? proximoTipo;
+
   const Planta({
     required this.id,
     required this.apodo,
@@ -45,9 +48,11 @@ class Planta {
     required this.diasParaRiego,
     this.proximoTratamiento,
     this.diasParaTratamientoBackend,
+    this.proximoTipo,
   });
 
   factory Planta.fromJson(Map<String, dynamic> json) {
+    print('PLANTA JSON --> apodo: ${json['apodo']} | proximo_tipo: ${json['proximo_tipo']}'); // <--- AGREGA ESTO
     return Planta(
       id: Json.texto(json['id']),
       apodo: Json.texto(json['apodo']),
@@ -68,6 +73,7 @@ class Planta {
       diasParaTratamientoBackend: json['dias_para_tratamiento'] != null
           ? Json.entero(json['dias_para_tratamiento'])
           : null,
+      proximoTipo: Json.textoNulo(json['proximo_tipo']),
     );
   }
 
@@ -89,11 +95,10 @@ class Planta {
   }
 
   // ═══════════════════════════════════════════════════════════
-  // CÁLCULOS DE TRATAMIENTO
+  // CÁLCULOS DE TRATAMIENTO Y REVISIÓN
   // ═══════════════════════════════════════════════════════════
 
   int? get diasParaTratamiento {
-    if (diasParaTratamientoBackend != null) return diasParaTratamientoBackend;
     if (proximoTratamiento == null) return null;
 
     final ahora = DateTime.now();
@@ -109,8 +114,15 @@ class Planta {
   bool get tratamientoAtrasado => (diasParaTratamiento ?? 1) < 0;
   bool get tratamientoHoy => (diasParaTratamiento ?? 1) == 0;
 
-  /// "Dosis hoy" / "Dosis atrasada 2 días" / "Dosis en 3 días"
+  /// Texto dinámico que cambia entre Dosis, Revisión pendiente o Revisión completada
   String get textoTratamiento {
+    if (proximoTipo == 'Revision') {
+      return 'Revisión pendiente';
+    }
+    if (proximoTipo == 'RevisionCompletada') {
+      return 'Revisión completada';
+    }
+
     final dias = diasParaTratamiento;
     if (dias == null) return 'Dosis programada';
     if (dias == 0) return 'Dosis hoy';
@@ -124,10 +136,6 @@ class Planta {
 }
 
 /// Planta completa: GET /plants/{id}
-///
-/// Anade los datos que solo aparecen en el detalle. `riegoNota` y
-/// `otrosCuidados` salen del ultimo diagnostico, asi que son null mientras la
-/// planta no tenga ninguno.
 class PlantaDetalle extends Planta {
   final String? speciesId;
   final DateTime? fechaSiembra;
@@ -150,6 +158,7 @@ class PlantaDetalle extends Planta {
     required super.diasParaRiego,
     super.proximoTratamiento,
     super.diasParaTratamientoBackend,
+    super.proximoTipo,
     required this.speciesId,
     required this.fechaSiembra,
     required this.riegoNota,
@@ -179,6 +188,7 @@ class PlantaDetalle extends Planta {
       diasParaTratamientoBackend: json['dias_para_tratamiento'] != null
           ? Json.entero(json['dias_para_tratamiento'])
           : null,
+      proximoTipo: Json.textoNulo(json['proximo_tipo']),
       speciesId: Json.textoNulo(json['species_id']),
       fechaSiembra: Json.fecha(json['fecha_siembra']),
       riegoNota: Json.textoNulo(json['riego_nota']),
@@ -191,7 +201,6 @@ class PlantaDetalle extends Planta {
 
   bool get tieneDiagnosticos => diagnosticos.isNotEmpty;
 
-  /// El backend ya los manda del mas reciente al mas antiguo.
   DiagnosticoResumen? get ultimoDiagnostico =>
       diagnosticos.isEmpty ? null : diagnosticos.first;
 }
@@ -202,8 +211,6 @@ class DiagnosticoResumen {
   final String nombreEnfermedad;
   final EstadoDiagnostico estado;
   final double confianza;
-
-  /// Enlace firmado que caduca en una hora. No lo guardes en cache.
   final String? imagenUrl;
   final DateTime createdAt;
 
@@ -227,7 +234,6 @@ class DiagnosticoResumen {
     );
   }
 
-  /// "79%" para pintar en la tarjeta.
   String get confianzaTexto => '${confianza.round()}%';
 }
 

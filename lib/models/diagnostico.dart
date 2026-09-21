@@ -44,7 +44,6 @@ class Diagnostico {
   /// Lista cruda de tratamientos disponibles para este diagnóstico.
   final List<Tratamiento> tratamientos;
 
-  final List<InsumoComercial> insumosNoCaseros;
   final String? imagenUrl;
   final String? gradcamUrl;
   final DateTime createdAt;
@@ -70,7 +69,6 @@ class Diagnostico {
     required this.riegoNota,
     required this.otrosCuidados,
     required this.tratamientos,
-    required this.insumosNoCaseros,
     required this.imagenUrl,
     required this.gradcamUrl,
     required this.createdAt,
@@ -98,8 +96,6 @@ class Diagnostico {
       riegoNota: Json.textoNulo(json['riego_nota']),
       otrosCuidados: Json.textoNulo(json['otros_cuidados']),
       tratamientos: Json.lista(json['tratamientos'], Tratamiento.fromJson),
-      insumosNoCaseros:
-      Json.lista(json['insumos_no_caseros'], InsumoComercial.fromJson),
       imagenUrl: Json.textoNulo(json['imagen_url']),
       gradcamUrl: Json.textoNulo(json['gradcam_url']),
       createdAt: Json.fechaObligatoria(json['created_at']),
@@ -111,53 +107,77 @@ class Diagnostico {
 
   String get confianzaTexto => '${confianza.round()}%';
 
+  /// Determina si la patología es incurable por métodos caseros y requiere erradicación o saneamiento.
+  bool get esIncurable {
+    final cientifico = (nombreCientifico ?? '').toLowerCase();
+    final nombre = nombreEnfermedad.toLowerCase();
+    return cientifico.contains('tomv') ||
+        cientifico.contains('tylcv') ||
+        cientifico.contains('liberibacter') ||
+        cientifico.contains('plasmodiophora') ||
+        nombre.contains('virus') ||
+        nombre.contains('mosaico') ||
+        nombre.contains('rizado amarillo') ||
+        nombre.contains('hlb') ||
+        nombre.contains('hernia de la col');
+  }
+
+  /// Verifica si la enfermedad amerita reporte o vigilancia oficial ante SENASA Perú.
+  bool get requiereReporteSenasa {
+    final cientifico = (nombreCientifico ?? '').toLowerCase();
+    final nombre = nombreEnfermedad.toLowerCase();
+    return cientifico.contains('liberibacter') ||
+        cientifico.contains('citri') ||
+        cientifico.contains('citricarpa') ||
+        nombre.contains('hlb') ||
+        nombre.contains('cancro') ||
+        nombre.contains('mancha negra');
+  }
+
   /// Retorna la receta ideal según la etiología agronómica y urgencia real.
   Tratamiento? get tratamientoPrincipal {
     if (tratamientos.isEmpty) return null;
 
-    final clase = top3.isNotEmpty ? top3.first.claseRaw.toLowerCase() : '';
+    final cientifico = (nombreCientifico ?? '').toLowerCase();
     final nombre = nombreEnfermedad.toLowerCase();
-    final urg = urgencia.etiqueta.toLowerCase();
 
-    // 1. Virosis por contacto mecánico -> Desinfección de herramientas
-    if (clase.contains('mosaic_virus') || nombre.contains('mosaico')) {
-      return _buscarPorSlug('leche_herramientas');
+    // 1. Virosis mecánicas -> Desinfección de herramientas
+    if (cientifico.contains('tomv') || nombre.contains('mosaico')) {
+      return _buscarPorSlug('desinfeccion_alcohol') ??
+          _buscarPorSlug('leche_herramientas');
     }
 
-    // 2. Virosis o bacterias por vectores voladores -> Trampas amarillas o Jabón potásico
-    if (clase.contains('yellow_leaf_curl') ||
-        clase.contains('greening') ||
+    // 2. Transmitidas por vectores voladores -> Trampas amarillas o Jabón potásico
+    if (cientifico.contains('tylcv') ||
+        cientifico.contains('liberibacter') ||
         nombre.contains('rizado amarillo') ||
         nombre.contains('hlb')) {
       return _buscarPorSlug('trampas_amarillas') ?? _buscarPorSlug('jabon_potasico');
     }
 
-    // 3. Plagas de cuerpo blando (ácaros, pulgones) -> Jabón potásico
-    if (clase.contains('spider_mites') ||
-        clase.contains('aphid') ||
-        nombre.contains('ácaros') ||
+    // 3. Plagas de cuerpo blando (araña roja, pulgones) -> Jabón potásico
+    if (cientifico.contains('urticae') ||
+        cientifico.contains('aphid') ||
+        nombre.contains('ácaro') ||
         nombre.contains('araña') ||
         nombre.contains('pulgón')) {
       return _buscarPorSlug('jabon_potasico');
     }
 
-    // 4. Infecciones destructivas / alta urgencia -> Caldo bordelés
-    if (urg.contains('alta') ||
-        clase.contains('late_blight') ||
-        clase.contains('black_rot') ||
-        clase.contains('canker') ||
+    // 4. Infecciones destructivas o de alta urgencia -> Desinfección o Caldo bordelés protector
+    if (urgencia == Urgencia.alta ||
+        cientifico.contains('infestans') ||
+        cientifico.contains('pseudomonas') ||
+        cientifico.contains('xanthomonas') ||
         nombre.contains('tizón tardío') ||
-        nombre.contains('podredumbre negra') ||
+        nombre.contains('podredumbre') ||
         nombre.contains('cancro')) {
-      return _buscarPorSlug('caldo_bordeles_casero');
+      return _buscarPorSlug('desinfeccion_alcohol') ??
+          _buscarPorSlug('caldo_bordeles_casero') ??
+          tratamientos.first;
     }
 
-    // 5. Bacteriosis foliares moderadas -> Extracto de ajo y ají (o caldo bordelés si no existe ajo)
-    if (nombre.contains('bacteriana') && !nombre.contains('pudrición')) {
-      return _buscarPorSlug('ajo_aji') ?? _buscarPorSlug('bicarbonato');
-    }
-
-    // 6. Hongos foliares moderados (tizón temprano, royas, manchas) -> Bicarbonato
+    // 5. Hongos foliares moderados (oídio, tizón temprano, cercospora) -> Bicarbonato
     return _buscarPorSlug('bicarbonato') ?? tratamientos.first;
   }
 
@@ -266,8 +286,13 @@ class Tratamiento {
         return n.contains('potásico') || n.contains('potasico') || n.contains('jabón');
       case 'ajo_aji':
         return n.contains('ajo') || n.contains('ají') || n.contains('aji');
+      case 'desinfeccion_alcohol':
       case 'leche_herramientas':
-        return n.contains('leche') || n.contains('herramientas') || n.contains('desinfección');
+        return n.contains('alcohol') ||
+            n.contains('desinfección') ||
+            n.contains('desinfeccion') ||
+            n.contains('herramientas') ||
+            n.contains('leche');
       case 'trampas_amarillas':
         return n.contains('trampa') || n.contains('amarilla');
       default:
@@ -278,9 +303,9 @@ class Tratamiento {
   String get planTexto {
     if (frecuenciaDias == 0) return '';
     if (numAplicaciones == 0) {
-      return 'Aplicar cada $frecuenciaDias ${frecuenciaDias == 1 ? 'día' : 'días'}';
+      return 'Aplicar cada $frecuenciaDias${frecuenciaDias == 1 ? 'día' : 'días'}';
     }
-    final aplicacion = numAplicaciones == 1 ? 'aplicación' : 'aplicaciones';
+    final aplicacion = numAplicaciones == 1 ? 'aplicación' : 'aplicacions';
     return '$numAplicaciones $aplicacion cada $frecuenciaDias '
         '${frecuenciaDias == 1 ? 'día' : 'días'}';
   }
@@ -296,32 +321,6 @@ class Ingrediente {
     return Ingrediente(
       item: Json.texto(json['item']),
       cantidad: Json.texto(json['cantidad']),
-    );
-  }
-}
-
-class InsumoComercial {
-  final String producto;
-  final String? presentacion;
-  final String? dondeComprar;
-  final String? distrito;
-  final String? precioReferencial;
-
-  const InsumoComercial({
-    required this.producto,
-    required this.presentacion,
-    required this.dondeComprar,
-    required this.distrito,
-    required this.precioReferencial,
-  });
-
-  factory InsumoComercial.fromJson(Map<String, dynamic> json) {
-    return InsumoComercial(
-      producto: Json.texto(json['producto']),
-      presentacion: Json.textoNulo(json['presentacion']),
-      dondeComprar: Json.textoNulo(json['donde_comprar']),
-      distrito: Json.textoNulo(json['distrito']),
-      precioReferencial: Json.textoNulo(json['precio_referencial']),
     );
   }
 }

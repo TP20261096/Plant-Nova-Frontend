@@ -23,7 +23,6 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    // Si llegamos aca por sesion expirada, mostramos ese aviso una sola vez.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final error = context.read<AuthProvider>().error;
       if (error != null && mounted) _mostrarError(error);
@@ -68,6 +67,9 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final cargando = context.watch<AuthProvider>().cargando;
+    final estiloInput = Theme.of(context).textTheme.bodyLarge?.copyWith(
+      color: AppColors.textPrimary,
+    );
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -83,19 +85,28 @@ class _LoginScreenState extends State<LoginScreen> {
                 children: [
                   _logo(),
                   const SizedBox(height: 32),
-                  Text('Bienvenido de vuelta',
-                      style: AppTextStyles.displayMedium,
-                      textAlign: TextAlign.center),
+                  Text(
+                    'Bienvenido de vuelta',
+                    style: AppTextStyles.displayMedium?.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
                   const SizedBox(height: 8),
-                  Text('Ingresa para ver tu huerto',
-                      style: AppTextStyles.bodyMedium,
-                      textAlign: TextAlign.center),
+                  Text(
+                    'Ingresa para ver tu huerto',
+                    style: AppTextStyles.bodyMedium?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
                   const SizedBox(height: 40),
                   TextFormField(
                     controller: _emailCtrl,
                     keyboardType: TextInputType.emailAddress,
                     textInputAction: TextInputAction.next,
                     autocorrect: false,
+                    style: estiloInput,
                     decoration: _campo('Correo', Icons.mail_outline),
                     validator: (v) {
                       final texto = (v ?? '').trim();
@@ -112,6 +123,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     obscureText: !_verPassword,
                     textInputAction: TextInputAction.done,
                     onFieldSubmitted: (_) => _entrar(),
+                    style: estiloInput,
                     decoration: _campo(
                       'Contrasena',
                       Icons.lock_outline,
@@ -139,7 +151,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text('No tienes cuenta?', style: AppTextStyles.bodyMedium),
+                      Text(
+                        'No tienes cuenta? ',
+                        style: AppTextStyles.bodyMedium?.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
                       TextButton(
                         onPressed: cargando
                             ? null
@@ -181,6 +198,12 @@ class _LoginScreenState extends State<LoginScreen> {
   InputDecoration _campo(String etiqueta, IconData icono, {Widget? sufijo}) {
     return InputDecoration(
       labelText: etiqueta,
+      labelStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 14),
+      floatingLabelStyle: const TextStyle(
+        color: AppColors.primary,
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+      ),
       prefixIcon: Icon(icono, color: AppColors.textTertiary),
       suffixIcon: sufijo,
       filled: true,

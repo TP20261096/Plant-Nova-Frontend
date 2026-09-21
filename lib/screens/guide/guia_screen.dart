@@ -139,7 +139,7 @@ class _GuiaScreenState extends State<GuiaScreen> {
     return RefreshIndicator(
       onRefresh: () => provider.cargar(),
       child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12), // <-- Cambia 85 por 12 o 14
         itemCount: provider.especies.length,
         itemBuilder: (context, index) {
           final especie = provider.especies[index];
