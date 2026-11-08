@@ -7,6 +7,21 @@ import '../../config/api_config.dart';
 import 'api_exception.dart';
 import 'token_storage.dart';
 
+/// Resultado de intentar renovar las credenciales.
+///
+/// Distinguir el rechazo del fallo de red es lo que evita cerrar la sesion
+/// por un corte momentaneo o por un arranque en frio del servidor.
+enum _ResultadoRefresh {
+  /// El servidor entrego credenciales nuevas.
+  renovado,
+
+  /// El servidor dijo que no: la sesion caduco de verdad.
+  rechazado,
+
+  /// No hubo respuesta. Las credenciales pueden seguir siendo validas.
+  sinRed,
+}
+
 /// Unico punto por el que la app habla con el backend.
 ///
 /// Se encarga de tres cosas que si no, habria que repetir en cada pantalla:
@@ -21,13 +36,19 @@ class ApiClient {
   final http.Client _http = http.Client();
   final TokenStorage _tokens = TokenStorage.instance;
 
+  /// Mensaje cuando no se pudo renovar por falta de respuesta. La sesion
+  /// se conserva: el usuario reintenta y sigue dentro.
+  static const String _sinRenovar =
+      'No se pudo contactar con el servidor. Revisa tu conexión e '
+      'inténtalo de nuevo.';
+
   /// Lo llama el cliente cuando el refresh falla y la sesion muere.
   /// AuthProvider lo usa para mandar al usuario al login.
   void Function()? onSesionExpirada;
 
   /// Si varias peticiones reciben 401 a la vez, todas esperan el mismo
   /// refresh en lugar de disparar cuatro y quemar el refresh_token.
-  Future<bool>? _refreshEnCurso;
+  Future<_ResultadoRefresh>? _refreshEnCurso;
 
   /// Endpoints que no llevan token.
   static const Set<String> _publicos = {
@@ -89,11 +110,15 @@ class ApiClient {
     }
 
     if (respuesta.statusCode == 401 && reintentar) {
-      if (await _refrescar()) {
-        return postArchivo(path,
-            archivo: archivo, campo: campo, extra: extra, reintentar: false);
+      switch (await _refrescar()) {
+        case _ResultadoRefresh.renovado:
+          return postArchivo(path,
+              archivo: archivo, campo: campo, extra: extra, reintentar: false);
+        case _ResultadoRefresh.rechazado:
+          await _matarSesion();
+        case _ResultadoRefresh.sinRed:
+          throw const ApiException(0, _sinRenovar);
       }
-      await _matarSesion();
     }
     return _procesar(respuesta);
   }
@@ -130,11 +155,16 @@ class ApiClient {
     }
 
     if (respuesta.statusCode == 401 && necesitaToken && reintentar) {
-      if (await _refrescar()) {
-        return _enviar(metodo, path,
-            body: body, query: query, reintentar: false);
+      switch (await _refrescar()) {
+        case _ResultadoRefresh.renovado:
+          return _enviar(metodo, path,
+              body: body, query: query, reintentar: false);
+        case _ResultadoRefresh.rechazado:
+          // Solo aqui se cierra la sesion: el servidor la rechazo.
+          await _matarSesion();
+        case _ResultadoRefresh.sinRed:
+          throw const ApiException(0, _sinRenovar);
       }
-      await _matarSesion();
     }
 
     return _procesar(respuesta);
@@ -164,15 +194,15 @@ class ApiClient {
 
   // -------------------------------------------------------------- refresh
 
-  Future<bool> _refrescar() {
+  Future<_ResultadoRefresh> _refrescar() {
     _refreshEnCurso ??=
         _hacerRefresh().whenComplete(() => _refreshEnCurso = null);
     return _refreshEnCurso!;
   }
 
-  Future<bool> _hacerRefresh() async {
+  Future<_ResultadoRefresh> _hacerRefresh() async {
     final refresh = await _tokens.refreshToken();
-    if (refresh == null) return false;
+    if (refresh == null) return _ResultadoRefresh.rechazado;
 
     try {
       final respuesta = await _http
@@ -186,7 +216,10 @@ class ApiClient {
       )
           .timeout(ApiConfig.timeout);
 
-      if (respuesta.statusCode != 200) return false;
+      // 4xx es el servidor diciendo que la sesion ya no vale. Un 5xx no:
+      // ahi el problema es suyo y las credenciales siguen siendo buenas.
+      if (respuesta.statusCode >= 500) return _ResultadoRefresh.sinRed;
+      if (respuesta.statusCode != 200) return _ResultadoRefresh.rechazado;
 
       final datos =
       jsonDecode(utf8.decode(respuesta.bodyBytes)) as Map<String, dynamic>;
@@ -194,9 +227,11 @@ class ApiClient {
         access: datos['access_token'] as String,
         refresh: datos['refresh_token'] as String,
       );
-      return true;
+      return _ResultadoRefresh.renovado;
     } catch (_) {
-      return false;
+      // Tiempo agotado o sin conexion: no hay prueba de que la sesion haya
+      // caducado, asi que no se borran las credenciales.
+      return _ResultadoRefresh.sinRed;
     }
   }
 

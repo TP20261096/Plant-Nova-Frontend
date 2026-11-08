@@ -11,6 +11,7 @@ import '../../providers/actividad_provider.dart';
 import '../../providers/diagnostico_provider.dart';
 import '../../providers/planta_provider.dart';
 import '../../widgets/home/actividad_card.dart';
+import '../../widgets/home/dialogo_tarea_completada.dart';
 import '../garden/planta_detalle_screen.dart';
 
 /// Pantalla con TODAS las actividades de un día.
@@ -19,9 +20,9 @@ class ActividadesDiaScreen extends StatefulWidget {
   final DateTime fecha;
 
   const ActividadesDiaScreen({
-    Key? key,
+    super.key,
     required this.fecha,
-  }) : super(key: key);
+  });
 
   @override
   State<ActividadesDiaScreen> createState() => _ActividadesDiaScreenState();
@@ -36,216 +37,14 @@ class _ActividadesDiaScreenState extends State<ActividadesDiaScreen> {
     });
   }
 
-  String _formatearFechaProxima(DateTime fecha) {
-    const meses = [
-      'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-      'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
-    ];
-    const dias = [
-      'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'
-    ];
-    final diaSemana = dias[fecha.weekday - 1];
-    final mes = meses[fecha.month - 1];
-    return '$diaSemana ${fecha.day} de $mes';
-  }
 
   void _mostrarDialogoExitoActividad(BuildContext context, Actividad actividad) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final esRiego = actividad.tipo == TipoActividad.riego ||
-        actividad.titulo.toLowerCase().contains('riego');
-
-    // Buscar la frecuencia de riego de la planta específica si está disponible en el provider
-    int diasRiego = 3; // Valor por defecto genérico
-    try {
-      final plantaProvider = context.read<PlantaProvider>();
-      final plantaEncontrada = plantaProvider.plantas.firstWhere(
-            (p) => p.id == actividad.plantId,
-        orElse: () => plantaProvider.plantas.first,
-      );
-      if (plantaEncontrada.riegoFrecuenciaDias != null) {
-        diasRiego = plantaEncontrada.riegoFrecuenciaDias!;
-      }
-    } catch (_) {}
-
-    final fechaProximaRiego = DateTime.now().add(Duration(days: diasRiego));
-    final fechaRiegoTexto = _formatearFechaProxima(fechaProximaRiego);
-
-    final numActual = actividad.aplicacionNum ?? 1;
-    final totalAplicaciones = actividad.totalAplicaciones ?? 1;
-    final esUnica = totalAplicaciones <= 1;
-
-    final esBordeles = actividad.titulo.toLowerCase().contains('bordel');
-    final diasIntervalo = esBordeles ? 10 : 7;
-    final fechaProximaTratamiento = DateTime.now().add(Duration(days: diasIntervalo));
-    final fechaTratamientoTexto = _formatearFechaProxima(fechaProximaTratamiento);
-
-    showDialog(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        contentPadding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.success.withOpacity(0.12),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.check_circle_outline,
-                color: AppColors.success,
-                size: 38,
-              ),
-            ),
-            const SizedBox(height: 14),
-            Text(
-              esRiego
-                  ? '¡Riego registrado!'
-                  : (esUnica ? '¡Actividad completada!' : '¡Tratamiento aplicado!'),
-              style: AppTextStyles.titleMedium.copyWith(
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-                color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            if (esRiego) ...[
-              Text(
-                'Has registrado el riego de ${actividad.planta}.',
-                style: AppTextStyles.bodyMedium.copyWith(
-                  fontSize: 13,
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 14),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppColors.success.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.success.withOpacity(0.3)),
-                ),
-                child: Center(
-                  child: Text(
-                    'Próximo riego: $fechaRiegoTexto',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.success,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ),
-            ] else if (esUnica) ...[
-              Text(
-                'Has completado exitosamente la actividad de ${actividad.planta}.',
-                style: AppTextStyles.bodyMedium.copyWith(
-                  fontSize: 13,
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ] else if (numActual < totalAplicaciones) ...[
-              Text(
-                'Has completado la dosis $numActual de $totalAplicaciones de ${actividad.planta}.',
-                style: AppTextStyles.bodyMedium.copyWith(
-                  fontSize: 13,
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 14),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppColors.warning.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.warning.withOpacity(0.3)),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.event, size: 16, color: AppColors.warning),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        'Próxima dosis: $fechaTratamientoTexto',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.warning,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ] else ...[
-              Text(
-                '¡Completaste el ciclo de $totalAplicaciones aplicaciones!',
-                style: AppTextStyles.bodyMedium.copyWith(
-                  fontSize: 13,
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 14),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryLight.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.primaryLight.withOpacity(0.3)),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.camera_alt_outlined, size: 16, color: AppColors.primaryLight),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        'Revisión fitosanitaria: $fechaTratamientoTexto',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.primaryLight,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
-        actions: [
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => Navigator.pop(dialogCtx),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: const Text('Entendido'),
-            ),
-          ),
-        ],
-      ),
+    // La siguiente tarea la calcula el backend y llega en la respuesta de
+    // PATCH /activities/{id}; el provider la guarda al completar.
+    mostrarDialogoTareaCompletada(
+      context,
+      completada: actividad,
+      proxima: context.read<ActividadProvider>().proximaTarea,
     );
   }
 
@@ -491,7 +290,7 @@ class _ActividadesDiaScreenState extends State<ActividadesDiaScreen> {
                   height: 4,
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(0.3),
+                    color: Colors.grey.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -503,7 +302,7 @@ class _ActividadesDiaScreenState extends State<ActividadesDiaScreen> {
                     width: 46,
                     height: 46,
                     decoration: BoxDecoration(
-                      color: actividad.tipo.color.withOpacity(0.12),
+                      color: actividad.tipo.color.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
@@ -597,10 +396,10 @@ class _ActividadesDiaScreenState extends State<ActividadesDiaScreen> {
                           builder: (context) {
                             final numActual = actividad.aplicacionNum ?? 1;
                             final total = actividad.totalAplicaciones ?? 3;
-                            final esBordeles = actividad.titulo.toLowerCase().contains('bordel');
-                            final diasIntervalo = esBordeles ? 10 : 7;
-                            final proximaFecha = DateTime.now().add(Duration(days: diasIntervalo));
-                            final fechaFormateada = _formatearFechaProxima(proximaFecha);
+                            // Sin fecha: el backend programa la siguiente
+                            // aplicacion al completar esta, contando desde la
+                            // fecha real de cumplimiento. Antes se deducia el
+                            // intervalo buscando "bordel" en el titulo.
                             final esUltimaDosis = numActual >= total || actividad.tipo == TipoActividad.revision;
 
                             final colorBase = esUltimaDosis ? AppColors.primaryLight : AppColors.warning;
@@ -609,16 +408,16 @@ class _ActividadesDiaScreenState extends State<ActividadesDiaScreen> {
                               width: double.infinity,
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                               decoration: BoxDecoration(
-                                color: colorBase.withOpacity(0.08),
+                                color: colorBase.withValues(alpha: 0.08),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: colorBase.withOpacity(0.25)),
+                                border: Border.all(color: colorBase.withValues(alpha: 0.25)),
                               ),
                               child: Row(
                                 children: [
                                   Container(
                                     padding: const EdgeInsets.all(7),
                                     decoration: BoxDecoration(
-                                      color: colorBase.withOpacity(0.15),
+                                      color: colorBase.withValues(alpha: 0.15),
                                       shape: BoxShape.circle,
                                     ),
                                     child: Icon(
@@ -646,8 +445,8 @@ class _ActividadesDiaScreenState extends State<ActividadesDiaScreen> {
                                         const SizedBox(height: 2),
                                         Text(
                                           esUltimaDosis
-                                              ? 'Foto diagnóstica el $fechaFormateada'
-                                              : 'Siguiente dosis el $fechaFormateada',
+                                              ? 'Se programa al completar esta dosis'
+                                              : 'Se programa al completar esta dosis',
                                           style: AppTextStyles.bodyMedium.copyWith(
                                             fontSize: 12,
                                             fontWeight: FontWeight.w600,
@@ -733,10 +532,10 @@ class _ActividadesDiaScreenState extends State<ActividadesDiaScreen> {
                             child: Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: AppColors.primaryLight.withOpacity(0.1),
+                                color: AppColors.primaryLight.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color: AppColors.primaryLight.withOpacity(0.3),
+                                  color: AppColors.primaryLight.withValues(alpha: 0.3),
                                 ),
                               ),
                               child: Row(

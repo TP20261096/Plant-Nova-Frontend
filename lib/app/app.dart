@@ -8,7 +8,7 @@ import 'routes.dart';
 import 'theme/app_theme.dart';
 
 class PlantNovaApp extends StatefulWidget {
-  const PlantNovaApp({Key? key}) : super(key: key);
+  const PlantNovaApp({super.key});
 
   @override
   State<PlantNovaApp> createState() => _PlantNovaAppState();

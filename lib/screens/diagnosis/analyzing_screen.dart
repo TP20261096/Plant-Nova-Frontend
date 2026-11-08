@@ -6,7 +6,7 @@ import '../../app/routes.dart';
 import '../../providers/diagnostico_provider.dart';
 
 class AnalyzingScreen extends StatefulWidget {
-  const AnalyzingScreen({Key? key}) : super(key: key);
+  const AnalyzingScreen({super.key});
 
   @override
   State<AnalyzingScreen> createState() => _AnalyzingScreenState();
@@ -168,8 +168,8 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
                         height: 200 + (_pulseAnimation.value * 40),
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: AppColors.primary.withOpacity(
-                            0.1 * (1 - _pulseAnimation.value),
+                          color: AppColors.primary.withValues(
+                            alpha: 0.1 * (1 - _pulseAnimation.value),
                           ),
                         ),
                       ),
@@ -197,7 +197,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
                             boxShadow: [
                               BoxShadow(
                                 color: (_isComplete ? AppColors.success : AppColors.primary)
-                                    .withOpacity(0.3),
+                                    .withValues(alpha: 0.3),
                                 blurRadius: 20,
                                 offset: const Offset(0, 5),
                               ),

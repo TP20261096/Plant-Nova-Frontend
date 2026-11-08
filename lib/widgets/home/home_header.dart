@@ -6,7 +6,7 @@ import '../../app/theme/app_text_styles.dart';
 import '../../providers/auth_provider.dart';
 
 class HomeHeader extends StatelessWidget {
-  const HomeHeader({Key? key}) : super(key: key);
+  const HomeHeader({super.key});
 
   @override
   Widget build(BuildContext context) {

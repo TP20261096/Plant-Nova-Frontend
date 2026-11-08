@@ -9,13 +9,13 @@ class AnimatedTabBar extends StatelessWidget {
   final Color? indicatorColor;
 
   const AnimatedTabBar({
-    Key? key,
+    super.key,
     required this.controller,
     required this.tabs,
     this.labelColor,
     this.unselectedLabelColor,
     this.indicatorColor,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

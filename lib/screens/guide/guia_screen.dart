@@ -10,11 +10,11 @@ import '../../widgets/plant/especie_card.dart';
 import 'especie_detalle_screen.dart';
 
 /// Menu Guia. Reemplaza a MyPlantsScreen, que pese al nombre era esta
-/// pantalla y leia de mock_guides.dart.
+/// pantalla y leía de datos simulados.
 class GuiaScreen extends StatefulWidget {
   final bool isEmbedded;
 
-  const GuiaScreen({Key? key, this.isEmbedded = false}) : super(key: key);
+  const GuiaScreen({super.key, this.isEmbedded = false});
 
   @override
   State<GuiaScreen> createState() => _GuiaScreenState();
@@ -110,6 +110,40 @@ class _GuiaScreenState extends State<GuiaScreen> {
     );
   }
 
+  /// Deja claro por que una especie que el usuario busca puede no estar:
+  /// el catalogo es el conjunto que el modelo sabe diagnosticar.
+  Widget _notaAlcance() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.info_outline,
+            size: 14,
+            color: isDark
+                ? AppColors.darkTextTertiary
+                : AppColors.textTertiary,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'Por ahora PlantNova solo reconoce estas especies',
+              style: AppTextStyles.bodySmall.copyWith(
+                fontSize: 11,
+                fontStyle: FontStyle.italic,
+                color: isDark
+                    ? AppColors.darkTextTertiary
+                    : AppColors.textTertiary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _cuerpo(GuiaProvider provider, bool isDark) {
     if (provider.cargando && provider.especies.isEmpty) {
       return const LoadingView(message: 'Cargando guías...');
@@ -139,9 +173,12 @@ class _GuiaScreenState extends State<GuiaScreen> {
     return RefreshIndicator(
       onRefresh: () => provider.cargar(),
       child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12), // <-- Cambia 85 por 12 o 14
-        itemCount: provider.especies.length,
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        // Una fila extra al final para la nota de alcance (HU024.3).
+        itemCount: provider.especies.length + 1,
         itemBuilder: (context, index) {
+          if (index == provider.especies.length) return _notaAlcance();
+
           final especie = provider.especies[index];
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),

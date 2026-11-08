@@ -9,10 +9,10 @@ class EspecieCard extends StatelessWidget {
   final VoidCallback onTap;
 
   const EspecieCard({
-    Key? key,
+    super.key,
     required this.especie,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   Color _colorDificultad(String dif) {
     final lower = dif.toLowerCase();
@@ -35,7 +35,7 @@ class EspecieCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.25 : 0.04),
+            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -207,10 +207,10 @@ class EspecieCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
       decoration: BoxDecoration(
-        color: color.withOpacity(isDark ? 0.2 : 0.1),
+        color: color.withValues(alpha: isDark ? 0.2 : 0.1),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: color.withOpacity(0.25),
+          color: color.withValues(alpha: 0.25),
           width: 1,
         ),
       ),

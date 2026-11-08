@@ -16,7 +16,7 @@ import '../../widgets/common/loading_view.dart';
 class EspecieDetalleScreen extends StatefulWidget {
   final String slug;
 
-  const EspecieDetalleScreen({Key? key, required this.slug}) : super(key: key);
+  const EspecieDetalleScreen({super.key, required this.slug});
 
   @override
   State<EspecieDetalleScreen> createState() => _EspecieDetalleScreenState();
@@ -150,7 +150,7 @@ class _EspecieDetalleScreenState extends State<EspecieDetalleScreen>
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
@@ -161,7 +161,7 @@ class _EspecieDetalleScreenState extends State<EspecieDetalleScreen>
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withOpacity(0.25),
+            color: AppColors.primary.withValues(alpha: 0.25),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -178,7 +178,7 @@ class _EspecieDetalleScreenState extends State<EspecieDetalleScreen>
               borderRadius: BorderRadius.circular(15),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 6,
                   offset: const Offset(0, 3),
                 ),
@@ -216,7 +216,7 @@ class _EspecieDetalleScreenState extends State<EspecieDetalleScreen>
           Text(
             especie.nombreCientifico,
             style: AppTextStyles.bodySmall.copyWith(
-              color: Colors.white.withOpacity(0.9),
+              color: Colors.white.withValues(alpha: 0.9),
               fontStyle: FontStyle.italic,
               fontSize: 11,
             ),
@@ -249,7 +249,7 @@ class _EspecieDetalleScreenState extends State<EspecieDetalleScreen>
           Text(
             especie.resumen,
             style: AppTextStyles.bodySmall.copyWith(
-              color: Colors.white.withOpacity(0.9),
+              color: Colors.white.withValues(alpha: 0.9),
               fontSize: 11,
               height: 1.3,
             ),
@@ -264,7 +264,7 @@ class _EspecieDetalleScreenState extends State<EspecieDetalleScreen>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
@@ -273,14 +273,14 @@ class _EspecieDetalleScreenState extends State<EspecieDetalleScreen>
                   Icon(
                     Icons.info_outline,
                     size: 14,
-                    color: Colors.white.withOpacity(0.9),
+                    color: Colors.white.withValues(alpha: 0.9),
                   ),
                   const SizedBox(width: 6),
                   Flexible(
                     child: Text(
                       'Sin diagnóstico por cámara aún',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withValues(alpha: 0.9),
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
                       ),
@@ -299,10 +299,10 @@ class _EspecieDetalleScreenState extends State<EspecieDetalleScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.2),
+        color: Colors.white.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: Colors.white.withOpacity(0.3),
+          color: Colors.white.withValues(alpha: 0.3),
         ),
       ),
       child: Row(
@@ -389,7 +389,7 @@ class _EspecieDetalleScreenState extends State<EspecieDetalleScreen>
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
@@ -423,7 +423,7 @@ class _EspecieDetalleScreenState extends State<EspecieDetalleScreen>
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -535,7 +535,7 @@ class _EspecieDetalleScreenState extends State<EspecieDetalleScreen>
             width: 20,
             height: 20,
             decoration: BoxDecoration(
-              color: AppColors.success.withOpacity(0.15),
+              color: AppColors.success.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
             child: const Icon(

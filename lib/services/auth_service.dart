@@ -42,6 +42,7 @@ class AuthService {
     final cuerpo = datos.containsKey('usuario')
         ? datos['usuario'] as Map<String, dynamic>
         : datos;
+    await _tokens.guardarUsuario(cuerpo);
     return Usuario.fromJson(cuerpo);
   }
 
@@ -61,11 +62,25 @@ class AuthService {
 
   Future<bool> haySesionGuardada() => _tokens.haySesion();
 
+  /// Copia del usuario de la ultima sesion, para abrir la app sin esperar
+  /// a /auth/me. Devuelve null si no hay ninguna guardada.
+  Future<Usuario?> usuarioEnCache() async {
+    final datos = await _tokens.usuarioGuardado();
+    if (datos == null) return null;
+    try {
+      return Usuario.fromJson(datos);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<Usuario> _guardarSesion(Map<String, dynamic> datos) async {
     await _tokens.guardar(
       access: datos['access_token'] as String,
       refresh: datos['refresh_token'] as String,
     );
-    return Usuario.fromJson(datos['usuario'] as Map<String, dynamic>);
+    final usuario = datos['usuario'] as Map<String, dynamic>;
+    await _tokens.guardarUsuario(usuario);
+    return Usuario.fromJson(usuario);
   }
 }

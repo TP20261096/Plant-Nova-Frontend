@@ -8,12 +8,12 @@ class SecondaryButton extends StatelessWidget {
   final bool fullWidth;
 
   const SecondaryButton({
-    Key? key,
+    super.key,
     required this.text,
     required this.onPressed,
     this.icon,
     this.fullWidth = true,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

@@ -8,11 +8,11 @@ class SectionTitle extends StatelessWidget {
   final VoidCallback? onAction;
 
   const SectionTitle({
-    Key? key,
+    super.key,
     required this.title,
     this.actionText,
     this.onAction,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

@@ -19,7 +19,7 @@ import 'editar_perfil_screen.dart';
 class PerfilScreen extends StatefulWidget {
   final bool isEmbedded;
 
-  const PerfilScreen({Key? key, this.isEmbedded = false}) : super(key: key);
+  const PerfilScreen({super.key, this.isEmbedded = false});
 
   @override
   State<PerfilScreen> createState() => _PerfilScreenState();
@@ -109,57 +109,13 @@ class _PerfilScreenState extends State<PerfilScreen> {
   // TARJETA PRINCIPAL (LAYOUT TIPO INSTAGRAM)
   // ═══════════════════════════════════════════════════════════
   Widget _datos(Perfil perfil, bool isDark) {
-    final plantaProv = context.watch<PlantaProvider>();
-    final diagProv = context.watch<DiagnosticoProvider>();
-    final activProv = context.watch<ActividadProvider>();
-
-    final totalPlantas = perfil.plantasRegistradas > 0
-        ? perfil.plantasRegistradas
-        : plantaProv.plantas.length;
-
-    // Cálculo robusto para contar todos los diagnósticos reales
-    int totalDiagnosticos = 0;
-    try {
-      final dynamic p = perfil;
-      // 1. Intentar leer si el perfil ya trae un contador de diagnósticos desde el backend
-      if (p.diagnosticosRegistrados != null) {
-        totalDiagnosticos = p.diagnosticosRegistrados;
-      } else if (p.totalDiagnosticos != null) {
-        totalDiagnosticos = p.totalDiagnosticos;
-      } else {
-        // 2. Si no viene en el perfil, revisamos el proveedor de diagnósticos o sumamos las listas internas
-        final dynamic d = diagProv;
-        if (d.historial != null && d.historial is List && (d.historial as List).isNotEmpty) {
-          totalDiagnosticos = (d.historial as List).length;
-        } else if (d.diagnosticos != null && d.diagnosticos is List && (d.diagnosticos as List).isNotEmpty) {
-          totalDiagnosticos = (d.diagnosticos as List).length;
-        } else {
-          // 3. Fallback dinámico: si el backend cuenta 2 diagnósticos para esa planta,
-          // aseguramos que al menos tome el número de plantas + las revisiones detectadas en las actividades o
-          // permitimos que el proveedor refleje el tamaño real. Por defecto, si hay plantas, evaluamos su historial.
-          totalDiagnosticos = plantaProv.plantas.fold(0, (sum, planta) {
-            try {
-              final dynamic plantaDyn = planta;
-              if (plantaDyn.diagnosticos != null && plantaDyn.diagnosticos is List) {
-                return sum + (plantaDyn.diagnosticos as List).length;
-              }
-            } catch (_) {}
-            // Si la planta tiene un estado de tratamiento o revisión completada, asumimos al menos 2 diagnósticos si el usuario lo indica
-            return sum + 2; // Ajustado temporalmente al caso de 2 diagnósticos por planta activa/revisada
-          });
-          if (totalDiagnosticos == 0) totalDiagnosticos = 1;
-        }
-      }
-    } catch (_) {
-      totalDiagnosticos = 2; // Respaldo para tu caso actual de 2 diagnósticos
-    }
-
-    int totalTareas = 0;
-    try {
-      totalTareas = activProv.actividades.length;
-    } catch (_) {
-      totalTareas = 0;
-    }
+    // Los tres contadores los calcula el backend y llegan en GET /profile
+    // (HU004). Antes se deducian en el cliente con reflexion sobre campos
+    // inexistentes y, cuando fallaba, se asumian dos diagnosticos por
+    // planta: lo que veia el usuario no correspondia con sus datos.
+    final totalPlantas = perfil.plantasRegistradas;
+    final totalDiagnosticos = perfil.diagnosticosRealizados;
+    final totalTareas = perfil.tareasPendientes;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -168,7 +124,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.04),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -248,10 +204,10 @@ class _PerfilScreenState extends State<PerfilScreen> {
                     vertical: 3.5,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColors.primaryLight.withOpacity(0.12),
+                    color: AppColors.primaryLight.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: AppColors.primaryLight.withOpacity(0.3),
+                      color: AppColors.primaryLight.withValues(alpha: 0.3),
                       width: 0.8,
                     ),
                   ),
@@ -307,7 +263,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.primaryLight,
                 side: BorderSide(
-                  color: AppColors.primaryLight.withOpacity(0.4),
+                  color: AppColors.primaryLight.withValues(alpha: 0.4),
                 ),
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 shape: RoundedRectangleBorder(
@@ -443,7 +399,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.035),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.035),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -462,7 +418,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
                   width: 38,
                   height: 38,
                   decoration: BoxDecoration(
-                    color: colorIcono.withOpacity(0.12),
+                    color: colorIcono.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(icono, color: colorIcono, size: 20),
@@ -533,7 +489,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: AppColors.error.withOpacity(0.1),
+                  color: AppColors.error.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -666,7 +622,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: AppColors.error.withOpacity(0.12),
+                      color: AppColors.error.withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(

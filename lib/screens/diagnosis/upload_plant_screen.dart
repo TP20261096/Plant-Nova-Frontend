@@ -13,9 +13,9 @@ class UploadPlantScreen extends StatefulWidget {
   final bool isEmbedded;
 
   const UploadPlantScreen({
-    Key? key,
+    super.key,
     this.isEmbedded = false,
-  }) : super(key: key);
+  });
 
   @override
   State<UploadPlantScreen> createState() => _UploadPlantScreenState();
@@ -24,7 +24,7 @@ class UploadPlantScreen extends StatefulWidget {
 class _UploadPlantScreenState extends State<UploadPlantScreen> {
   final ImagePicker _picker = ImagePicker();
   String? _imagePath;
-  bool _isLoading = false;
+  final bool _isLoading = false;
   String? _plantId; // ← ID de la planta si viene del jardín
 
   @override
@@ -233,7 +233,7 @@ class _UploadPlantScreenState extends State<UploadPlantScreen> {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(
+        const Icon(
           Icons.add_photo_alternate,
           size: 64,
           color: AppColors.primaryLight,
@@ -287,7 +287,7 @@ class _UploadPlantScreenState extends State<UploadPlantScreen> {
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.5),
+                color: Colors.black.withValues(alpha: 0.5),
                 shape: BoxShape.circle,
               ),
               child: const Icon(

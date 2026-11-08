@@ -6,10 +6,10 @@ class CustomBottomNavigation extends StatelessWidget {
   final Function(int) onTap;
 
   const CustomBottomNavigation({
-    Key? key,
+    super.key,
     required this.currentIndex,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +20,7 @@ class CustomBottomNavigation extends StatelessWidget {
         color: isDark ? AppColors.darkSurface : AppColors.surface,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
             blurRadius: 8,
             offset: const Offset(0, -2),
           ),
@@ -121,7 +121,7 @@ class CustomBottomNavigation extends StatelessWidget {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.primary.withOpacity(0.35),
+                  color: AppColors.primary.withValues(alpha: 0.35),
                   blurRadius: 6,
                   offset: const Offset(0, 3),
                 ),

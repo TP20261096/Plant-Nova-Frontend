@@ -23,10 +23,10 @@ class PlantaDetalleScreen extends StatefulWidget {
   final bool enfocarCuidados;
 
   const PlantaDetalleScreen({
-    Key? key,
+    super.key,
     required this.plantaId,
     this.enfocarCuidados = false,
-  }) : super(key: key);
+  });
 
   @override
   State<PlantaDetalleScreen> createState() => _PlantaDetalleScreenState();
@@ -199,7 +199,7 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
                   isDark,
                   diagnosticNumber: entry.key + 1,
                 );
-              }).toList(),
+              }),
           ],
         ),
       ),
@@ -221,7 +221,7 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
           end: Alignment.bottomRight,
           colors: [
             statusColor,
-            statusColor.withOpacity(0.7),
+            statusColor.withValues(alpha: 0.7),
           ],
         ),
         borderRadius: BorderRadius.circular(16),
@@ -242,7 +242,7 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
                     borderRadius: BorderRadius.circular(15),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.15),
+                        color: Colors.black.withValues(alpha: 0.15),
                         blurRadius: 10,
                         offset: const Offset(0, 5),
                       ),
@@ -270,7 +270,7 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.15),
+                            color: Colors.black.withValues(alpha: 0.15),
                             blurRadius: 4,
                           ),
                         ],
@@ -324,7 +324,7 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
           Text(
             planta.especieVisible,
             style: AppTextStyles.bodySmall.copyWith(
-              color: Colors.white.withOpacity(0.9),
+              color: Colors.white.withValues(alpha: 0.9),
               fontStyle: FontStyle.italic,
             ),
             textAlign: TextAlign.center,
@@ -339,10 +339,10 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
               vertical: 4,
             ),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.3),
+              color: Colors.white.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: Colors.white.withOpacity(0.5),
+                color: Colors.white.withValues(alpha: 0.5),
               ),
             ),
             child: Text(
@@ -398,12 +398,12 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withOpacity(0.25)),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -508,10 +508,10 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
         borderRadius: BorderRadius.circular(14),
         border: highlighted
             ? Border.all(color: AppColors.primaryLight, width: 2)
-            : Border.all(color: Colors.grey.withOpacity(0.15)),
+            : Border.all(color: Colors.grey.withValues(alpha: 0.15)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -593,7 +593,7 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
       ),
       child: Column(
         children: [
-          Icon(
+          const Icon(
             Icons.health_and_safety,
             size: 40,
             color: AppColors.primaryLight,
@@ -642,7 +642,7 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
             blurRadius: 6,
             offset: const Offset(0, 3),
           ),
@@ -664,7 +664,7 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: diagnosis.estado.color.withOpacity(0.1),
+                        color: diagnosis.estado.color.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(
@@ -1035,7 +1035,7 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),

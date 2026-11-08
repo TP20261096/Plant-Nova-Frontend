@@ -9,13 +9,13 @@ class PrimaryButton extends StatelessWidget {
   final bool fullWidth;
 
   const PrimaryButton({
-    Key? key,
+    super.key,
     required this.text,
     required this.onPressed,
     this.icon,
     this.isLoading = false,
     this.fullWidth = true,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

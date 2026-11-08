@@ -5,10 +5,11 @@ import '../../app/routes.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../providers/auth_provider.dart';
+import '../legal/terminos_screen.dart';
 import '../../widgets/common/primary_button.dart';
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({Key? key}) : super(key: key);
+  const RegisterScreen({super.key});
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -21,6 +22,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
   bool _verPassword = false;
+  bool _aceptaTerminos = false;
 
   @override
   void dispose() {
@@ -35,6 +37,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
+    if (!_aceptaTerminos) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Debes aceptar los términos y condiciones'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      return;
+    }
+
     final auth = context.read<AuthProvider>();
     final ok = await auth.registrar(
       nombre: _nombreCtrl.text,
@@ -44,14 +59,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     if (!mounted) return;
     if (ok) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Cuenta creada con éxito'),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (_) => false);
     } else {
+      // El mensaje se lee ANTES de limpiarlo: al reves, limpiarError lo
+      // pone en null y siempre se mostraba el texto generico, de modo que
+      // el aviso de correo duplicado nunca llegaba a verse.
+      final mensaje = auth.error ?? 'No se pudo crear la cuenta.';
       auth.limpiarError();
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
           SnackBar(
-            content: Text(auth.error ?? 'No se pudo crear la cuenta.'),
+            content: Text(mensaje),
             backgroundColor: AppColors.error,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
@@ -90,7 +118,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 Text(
                   'Crea tu cuenta',
                   textAlign: TextAlign.center,
-                  style: AppTextStyles.displayMedium?.copyWith(
+                  style: AppTextStyles.displayMedium.copyWith(
                     color: AppColors.textPrimary,
                   ),
                 ),
@@ -98,7 +126,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 Text(
                   'Empieza a cuidar tu huerto urbano',
                   textAlign: TextAlign.center,
-                  style: AppTextStyles.bodyMedium?.copyWith(
+                  style: AppTextStyles.bodyMedium.copyWith(
                     color: AppColors.textTertiary,
                   ),
                 ),
@@ -112,7 +140,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   style: estiloInput,
                   decoration: _campo('Nombre', Icons.person_outline),
                   validator: (v) => (v ?? '').trim().isEmpty
-                      ? 'Ingresa tu nombre'
+                      ? 'El nombre es obligatorio'
                       : null,
                 ),
                 const SizedBox(height: 18),
@@ -127,9 +155,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   decoration: _campo('Correo', Icons.mail_outline),
                   validator: (v) {
                     final texto = (v ?? '').trim();
-                    if (texto.isEmpty) return 'Ingresa tu correo';
+                    if (texto.isEmpty) return 'Ingrese su correo electrónico';
                     if (!texto.contains('@') || !texto.contains('.')) {
-                      return 'Correo no válido';
+                      return 'Ingrese un correo electrónico válido';
                     }
                     return null;
                   },
@@ -158,8 +186,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   validator: (v) {
                     final texto = v ?? '';
-                    if (texto.isEmpty) return 'Ingresa una contraseña';
-                    if (texto.length < 8) return 'Mínimo 8 caracteres';
+                    if (texto.isEmpty) return 'Ingrese su contraseña';
+                    if (texto.length < 8) {
+                      return 'La contraseña debe tener como mínimo 8 caracteres';
+                    }
                     return null;
                   },
                 ),
@@ -180,7 +210,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ? 'Las contraseñas no coinciden'
                       : null,
                 ),
-                const SizedBox(height: 36),
+                const SizedBox(height: 24),
+
+                _casillaTerminos(),
+                const SizedBox(height: 20),
 
                 PrimaryButton(
                   text: 'Crear cuenta',
@@ -194,7 +227,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   children: [
                     Text(
                       '¿Ya tienes cuenta? ',
-                      style: AppTextStyles.bodyMedium?.copyWith(
+                      style: AppTextStyles.bodyMedium.copyWith(
                         color: AppColors.textSecondary,
                       ),
                     ),
@@ -224,6 +257,64 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  /// Aceptacion explicita antes de crear la cuenta. El enlace abre el
+  /// texto completo sin sacar al usuario del formulario, para que no pierda
+  /// lo que ya escribio.
+  Widget _casillaTerminos() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 24,
+          height: 24,
+          child: Checkbox(
+            value: _aceptaTerminos,
+            activeColor: AppColors.primary,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            onChanged: (valor) =>
+                setState(() => _aceptaTerminos = valor ?? false),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  'He leído y acepto los ',
+                  style: AppTextStyles.bodySmall.copyWith(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const TerminosScreen(),
+                    ),
+                  ),
+                  child: Text(
+                    'términos y condiciones',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      fontSize: 12,
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600,
+                      decoration: TextDecoration.underline,
+                      decorationColor: AppColors.primary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 

@@ -9,12 +9,12 @@ class TipCard extends StatelessWidget {
   final VoidCallback? onTap;
 
   const TipCard({
-    Key? key,
+    super.key,
     required this.icon,
     required this.title,
     required this.description,
     this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

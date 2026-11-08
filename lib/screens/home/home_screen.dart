@@ -8,10 +8,13 @@ import '../../app/theme/app_text_styles.dart';
 import '../../models/actividad.dart';
 import '../../models/enums.dart';
 import '../../providers/actividad_provider.dart';
+import '../../providers/consejo_provider.dart';
 import '../../providers/diagnostico_provider.dart';
+import '../../providers/perfil_provider.dart';
 import '../../providers/planta_provider.dart';
 import '../../providers/weather_provider.dart';
 import '../../widgets/home/actividad_card.dart';
+import '../../widgets/home/dialogo_tarea_completada.dart';
 import '../../widgets/home/home_header.dart';
 import '../../widgets/navigation/custom_bottom_navigation.dart';
 import '../actividades/actividades_dia_screen.dart';
@@ -22,7 +25,7 @@ import '../guide/guia_screen.dart';
 import '../profile/perfil_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -48,24 +51,31 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<PlantaProvider>().cargar();
-      context.read<ActividadProvider>().cargar();
+      context.read<ActividadProvider>().cargarSemana();
       context.read<WeatherProvider>().loadWeather();
+      context.read<ConsejoProvider>().cargar();
     });
   }
 
   // Valida si la actividad corresponde al día que el usuario tiene seleccionado en el carrusel
+  /// Si la tarea se puede marcar desde el dia que se esta viendo.
+  ///
+  /// Una tarea atrasada se puede completar siempre: el backend la repite en
+  /// cada dia desde su fecha hasta hoy justo para eso. Antes se comparaba
+  /// solo contra el dia seleccionado, de modo que una tarea del miercoles
+  /// aparecia hoy pero no se dejaba marcar, y el selector no llega tan
+  /// atras como para ir a buscarla.
+  bool _sePuedeMarcar(Actividad actividad) {
+    return actividad.atrasada ||
+        _esActividadDelDiaSeleccionado(actividad.fechaProgramada);
+  }
+
   bool _esActividadDelDiaSeleccionado(DateTime fechaProgramada) {
     return fechaProgramada.year == _selectedDate.year &&
         fechaProgramada.month == _selectedDate.month &&
         fechaProgramada.day == _selectedDate.day;
   }
 
-  bool _esActividadPasada(DateTime fechaProgramada) {
-    final ahora = DateTime.now();
-    final hoySinHora = DateTime(ahora.year, ahora.month, ahora.day);
-    final fechaSinHora = DateTime(fechaProgramada.year, fechaProgramada.month, fechaProgramada.day);
-    return fechaSinHora.isBefore(hoySinHora);
-  }
 
   String _formatearFechaProxima(DateTime fecha) {
     const meses = [
@@ -81,201 +91,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _mostrarDialogoExitoActividad(BuildContext context, Actividad actividad) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final esRiego = actividad.tipo == TipoActividad.riego ||
-        actividad.titulo.toLowerCase().contains('riego');
-
-    int diasRiego = 3;
-    try {
-      final plantaProvider = context.read<PlantaProvider>();
-      final plantaEncontrada = plantaProvider.plantas.firstWhere(
-            (p) => p.id == actividad.plantId,
-        orElse: () => plantaProvider.plantas.first,
-      );
-      if (plantaEncontrada.riegoFrecuenciaDias != null) {
-        diasRiego = plantaEncontrada.riegoFrecuenciaDias!;
-      }
-    } catch (_) {}
-
-    final fechaProximaRiego = DateTime.now().add(Duration(days: diasRiego));
-    final fechaRiegoTexto = _formatearFechaProxima(fechaProximaRiego);
-
-    final numActual = actividad.aplicacionNum ?? 1;
-    final totalAplicaciones = actividad.totalAplicaciones ?? 1;
-    final esUnica = totalAplicaciones <= 1;
-
-    final esBordeles = actividad.titulo.toLowerCase().contains('bordel');
-    final diasIntervalo = esBordeles ? 10 : 7;
-    final fechaProximaTratamiento = DateTime.now().add(Duration(days: diasIntervalo));
-    final fechaTratamientoTexto = _formatearFechaProxima(fechaProximaTratamiento);
-
-    showDialog(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        contentPadding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.success.withOpacity(0.12),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.check_circle_outline,
-                color: AppColors.success,
-                size: 38,
-              ),
-            ),
-            const SizedBox(height: 14),
-            Text(
-              esRiego
-                  ? '¡Riego registrado!'
-                  : (esUnica ? '¡Actividad completada!' : '¡Tratamiento aplicado!'),
-              style: AppTextStyles.titleMedium.copyWith(
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-                color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            if (esRiego) ...[
-              Text(
-                'Has registrado el riego de ${actividad.planta}.',
-                style: AppTextStyles.bodyMedium.copyWith(
-                  fontSize: 13,
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 14),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppColors.success.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.success.withOpacity(0.3)),
-                ),
-                child: Center(
-                  child: Text(
-                    'Próximo riego: $fechaRiegoTexto',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.success,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ),
-            ] else if (esUnica) ...[
-              Text(
-                'Has completado exitosamente la actividad de ${actividad.planta}.',
-                style: AppTextStyles.bodyMedium.copyWith(
-                  fontSize: 13,
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ] else if (numActual < totalAplicaciones) ...[
-              Text(
-                'Has completado la dosis $numActual de $totalAplicaciones de ${actividad.planta}.',
-                style: AppTextStyles.bodyMedium.copyWith(
-                  fontSize: 13,
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 14),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppColors.warning.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.warning.withOpacity(0.3)),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.event, size: 16, color: AppColors.warning),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        'Próxima dosis: $fechaTratamientoTexto',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.warning,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ] else ...[
-              Text(
-                '¡Completaste el ciclo de $totalAplicaciones aplicaciones!',
-                style: AppTextStyles.bodyMedium.copyWith(
-                  fontSize: 13,
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 14),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryLight.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.primaryLight.withOpacity(0.3)),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.camera_alt_outlined, size: 16, color: AppColors.primaryLight),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        'Revisión fitosanitaria: $fechaTratamientoTexto',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.primaryLight,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
-        actions: [
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => Navigator.pop(dialogCtx),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: const Text('Entendido'),
-            ),
-          ),
-        ],
-      ),
+    // La siguiente tarea la calcula el backend y llega en la respuesta de
+    // PATCH /activities/{id}; el provider la guarda al completar.
+    mostrarDialogoTareaCompletada(
+      context,
+      completada: actividad,
+      proxima: context.read<ActividadProvider>().proximaTarea,
     );
   }
 
@@ -319,6 +140,14 @@ class _HomeScreenState extends State<HomeScreen> {
         onTap: (index) {
           HapticFeedback.selectionClick();
           setState(() => _currentIndex = index);
+
+          // Las pestanas se mantienen vivas, asi que Perfil no vuelve a
+          // ejecutar su initState. Sin esto, los contadores de plantas,
+          // diagnosticos y tareas se quedarian con el valor de la primera
+          // vez que se abrio la pestana (HU004.2).
+          if (index == 4) {
+            context.read<PerfilProvider>().cargar(silencioso: true);
+          }
         },
       ),
     );
@@ -333,9 +162,16 @@ class _HomeScreenState extends State<HomeScreen> {
     return SafeArea(
       child: RefreshIndicator(
         onRefresh: () async {
-          await context.read<ActividadProvider>().cargar(silencioso: true);
-          await context.read<WeatherProvider>().loadWeather();
-          await context.read<PlantaProvider>().cargar(silencioso: true);
+          // Los providers se leen antes de los await: despues de uno, el
+          // widget puede estar desmontado y el context ya no es valido.
+          final actividades = context.read<ActividadProvider>();
+          final clima = context.read<WeatherProvider>();
+          final plantas = context.read<PlantaProvider>();
+          await Future.wait([
+            actividades.cargarSemana(silencioso: true),
+            clima.loadWeather(),
+            plantas.cargar(silencioso: true),
+          ]);
         },
         color: AppColors.primaryLight,
         child: SingleChildScrollView(
@@ -364,7 +200,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+                      color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
                       blurRadius: 4,
                       offset: const Offset(0, 2),
                     ),
@@ -449,7 +285,7 @@ class _HomeScreenState extends State<HomeScreen> {
         else ...[
             ...visibles.map((actividad) {
               final estaProcesando = provider.estaCompletando(actividad.id);
-              final esDelDiaSeleccionado = _esActividadDelDiaSeleccionado(actividad.fechaProgramada);
+              final esDelDiaSeleccionado = _sePuedeMarcar(actividad);
 
               return Padding(
                 padding: const EdgeInsets.only(bottom: 4),
@@ -565,7 +401,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // ═══════════════════════════════════════════════════════════
   void _mostrarModalDetalleActividad(BuildContext context, Actividad actividad) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final esDelDiaSeleccionado = _esActividadDelDiaSeleccionado(actividad.fechaProgramada);
+    final esDelDiaSeleccionado = _sePuedeMarcar(actividad);
 
     final esTratamiento = actividad.tipo == TipoActividad.tratamiento ||
         actividad.tipo == TipoActividad.revision ||
@@ -602,7 +438,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   height: 4,
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(0.3),
+                    color: Colors.grey.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -614,7 +450,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     width: 46,
                     height: 46,
                     decoration: BoxDecoration(
-                      color: actividad.tipo.color.withOpacity(0.12),
+                      color: actividad.tipo.color.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
@@ -673,9 +509,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           width: double.infinity,
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: AppColors.warning.withOpacity(0.12),
+                            color: AppColors.warning.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+                            border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
                           ),
                           child: Row(
                             children: [
@@ -738,10 +574,10 @@ class _HomeScreenState extends State<HomeScreen> {
                           builder: (context) {
                             final numActual = actividad.aplicacionNum ?? 1;
                             final total = actividad.totalAplicaciones ?? 3;
-                            final esBordeles = actividad.titulo.toLowerCase().contains('bordel');
-                            final diasIntervalo = esBordeles ? 10 : 7;
-                            final proximaFecha = DateTime.now().add(Duration(days: diasIntervalo));
-                            final fechaFormateada = _formatearFechaProxima(proximaFecha);
+                            // Sin fecha: el backend programa la siguiente
+                            // aplicacion al completar esta, contando desde la
+                            // fecha real de cumplimiento. Antes se deducia el
+                            // intervalo buscando "bordel" en el titulo.
                             final esUltimaDosis = numActual >= total || actividad.tipo == TipoActividad.revision;
 
                             final colorBase = esUltimaDosis ? AppColors.primaryLight : AppColors.warning;
@@ -750,16 +586,16 @@ class _HomeScreenState extends State<HomeScreen> {
                               width: double.infinity,
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                               decoration: BoxDecoration(
-                                color: colorBase.withOpacity(0.08),
+                                color: colorBase.withValues(alpha: 0.08),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: colorBase.withOpacity(0.25)),
+                                border: Border.all(color: colorBase.withValues(alpha: 0.25)),
                               ),
                               child: Row(
                                 children: [
                                   Container(
                                     padding: const EdgeInsets.all(7),
                                     decoration: BoxDecoration(
-                                      color: colorBase.withOpacity(0.15),
+                                      color: colorBase.withValues(alpha: 0.15),
                                       shape: BoxShape.circle,
                                     ),
                                     child: Icon(
@@ -787,8 +623,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                         const SizedBox(height: 2),
                                         Text(
                                           esUltimaDosis
-                                              ? 'Foto diagnóstica el $fechaFormateada'
-                                              : 'Siguiente dosis el $fechaFormateada',
+                                              ? 'Se programa al completar esta dosis'
+                                              : 'Se programa al completar esta dosis',
                                           style: AppTextStyles.bodyMedium.copyWith(
                                             fontSize: 12,
                                             fontWeight: FontWeight.w600,
@@ -886,10 +722,10 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: AppColors.primaryLight.withOpacity(0.1),
+                                color: AppColors.primaryLight.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color: AppColors.primaryLight.withOpacity(0.3),
+                                  color: AppColors.primaryLight.withValues(alpha: 0.3),
                                 ),
                               ),
                               child: Row(
@@ -967,7 +803,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primaryLight,
                       foregroundColor: Colors.white,
-                      disabledBackgroundColor: Colors.grey.withOpacity(0.3),
+                      disabledBackgroundColor: Colors.grey.withValues(alpha: 0.3),
                       disabledForegroundColor: Colors.grey,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
@@ -1009,7 +845,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
-                      disabledBackgroundColor: Colors.grey.withOpacity(0.3),
+                      disabledBackgroundColor: Colors.grey.withValues(alpha: 0.3),
                       disabledForegroundColor: Colors.grey,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
@@ -1051,7 +887,7 @@ class _HomeScreenState extends State<HomeScreen> {
               color: isDark ? AppColors.darkPrimaryBg : AppColors.primaryBg,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: AppColors.primaryLight.withOpacity(0.3),
+                color: AppColors.primaryLight.withValues(alpha: 0.3),
               ),
             ),
             child: Row(
@@ -1138,7 +974,7 @@ class _HomeScreenState extends State<HomeScreen> {
         : (isDark ? AppColors.darkSurface : AppColors.surface);
 
     final dayNameColor = isToday
-        ? Colors.white.withOpacity(0.9)
+        ? Colors.white.withValues(alpha: 0.9)
         : (isDark ? AppColors.darkTextSecondary : AppColors.textSecondary);
 
     final dayNumberColor = isToday
@@ -1155,7 +991,7 @@ class _HomeScreenState extends State<HomeScreen> {
             : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -1194,16 +1030,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final weather = weatherProvider.weather;
 
     if (weatherProvider.isLoading && weather == null) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Colors.blue.shade500, Colors.blue.shade300],
-          ),
-          borderRadius: BorderRadius.circular(16),
-        ),
+      return _weatherShell(
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -1230,16 +1057,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     if (weather == null) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Colors.blue.shade500, Colors.blue.shade300],
-          ),
-          borderRadius: BorderRadius.circular(16),
-        ),
+      return _weatherShell(
         child: Row(
           children: [
             const Icon(Icons.cloud_off, color: Colors.white, size: 28),
@@ -1247,9 +1065,10 @@ class _HomeScreenState extends State<HomeScreen> {
             Expanded(
               child: GestureDetector(
                 onTap: () => weatherProvider.loadWeather(),
-                child: const Text(
-                  'No se pudo cargar el clima. Toca aquí para reintentar.',
-                  style: TextStyle(color: Colors.white, fontSize: 13),
+                child: Text(
+                  '${weatherProvider.error ?? 'No se pudo cargar el clima.'} '
+                  'Toca aquí para reintentar.',
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
                 ),
               ),
             ),
@@ -1258,36 +1077,27 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Colors.blue.shade500, Colors.blue.shade300],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.blue.withOpacity(0.25),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
+    return _weatherShell(
+      sombra: true,
       child: Row(
         children: [
+          // El backend no manda el estado del cielo ni un codigo de icono,
+          // asi que mostramos la temperatura en lugar de inventar un simbolo.
           Container(
             width: 48,
             height: 48,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.25),
+              color: Colors.white.withValues(alpha: 0.25),
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              _getWeatherIcon(weather.icon),
-              color: Colors.white,
-              size: 28,
+            child: Text(
+              '${weather.temperatura.round()}°',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -1296,9 +1106,9 @@ class _HomeScreenState extends State<HomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  weather.cityName,
-                  style: const TextStyle(
+                const Text(
+                  'Lima Metropolitana',
+                  style: TextStyle(
                     color: Colors.white,
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
@@ -1309,7 +1119,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  '${weather.description} · ${weather.temperature.toStringAsFixed(1)}°C',
+                  weather.actualizadoTexto.isEmpty
+                      ? '${weather.ciudad} · ${weather.temperaturaTexto}'
+                      : '${weather.ciudad} · ${weather.actualizadoTexto}',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 13,
@@ -1326,45 +1138,9 @@ class _HomeScreenState extends State<HomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.water_drop,
-                    color: Colors.white.withOpacity(0.95),
-                    size: 14,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${weather.humidity}%',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
+              _weatherDato(Icons.water_drop, weather.humedadTexto),
               const SizedBox(height: 4),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.air,
-                    color: Colors.white.withOpacity(0.95),
-                    size: 14,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${(weather.windSpeed * 3.6).toStringAsFixed(0)} km/h',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
+              _weatherDato(Icons.air, weather.vientoTexto),
             ],
           ),
         ],
@@ -1372,37 +1148,46 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  IconData _getWeatherIcon(String iconCode) {
-    switch (iconCode) {
-      case '01d':
-        return Icons.wb_sunny;
-      case '01n':
-        return Icons.nightlight;
-      case '02d':
-      case '02n':
-        return Icons.wb_cloudy;
-      case '03d':
-      case '03n':
-      case '04d':
-      case '04n':
-        return Icons.cloud;
-      case '09d':
-      case '09n':
-      case '10d':
-      case '10n':
-        return Icons.water_drop;
-      case '11d':
-      case '11n':
-        return Icons.thunderstorm;
-      case '13d':
-      case '13n':
-        return Icons.ac_unit;
-      case '50d':
-      case '50n':
-        return Icons.foggy;
-      default:
-        return Icons.wb_sunny;
-    }
+  Widget _weatherShell({required Widget child, bool sombra = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.blue.shade500, Colors.blue.shade300],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: sombra
+            ? [
+                BoxShadow(
+                  color: Colors.blue.withValues(alpha: 0.25),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ]
+            : null,
+      ),
+      child: child,
+    );
+  }
+
+  Widget _weatherDato(IconData icono, String texto) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icono, color: Colors.white.withValues(alpha: 0.95), size: 14),
+        const SizedBox(width: 4),
+        Text(
+          texto,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -1420,7 +1205,7 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -1498,18 +1283,18 @@ class _HomeScreenState extends State<HomeScreen> {
   }) {
     return Expanded(
       child: Material(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
-          splashColor: color.withOpacity(0.25),
-          highlightColor: color.withOpacity(0.12),
+          splashColor: color.withValues(alpha: 0.25),
+          highlightColor: color.withValues(alpha: 0.12),
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 8),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: color.withOpacity(0.3)),
+              border: Border.all(color: color.withValues(alpha: 0.3)),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1555,39 +1340,12 @@ class _HomeScreenState extends State<HomeScreen> {
   // ═══════════════════════════════════════════════════════════
   Widget _buildQuickTip() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final provider = context.watch<ConsejoProvider>();
+    final consejos = provider.consejos;
 
-    final consejos = [
-      {
-        'icon': Icons.water_drop,
-        'titulo': 'Riego matutino',
-        'texto':
-        'Riega tus plantas temprano en la mañana para evitar la evaporación.',
-      },
-      {
-        'icon': Icons.wb_sunny,
-        'titulo': 'Luz adecuada',
-        'texto':
-        'La mayoría de cultivos necesitan 6-8 horas de luz solar directa al día.',
-      },
-      {
-        'icon': Icons.eco,
-        'titulo': 'Abono orgánico',
-        'texto':
-        'Usa compost o humus de lombriz cada 15 días para fortalecer tus plantas.',
-      },
-      {
-        'icon': Icons.content_cut,
-        'titulo': 'Poda regular',
-        'texto':
-        'Elimina hojas secas o enfermas para mejorar la circulación de aire.',
-      },
-      {
-        'icon': Icons.bug_report,
-        'titulo': 'Monitoreo',
-        'texto':
-        'Revisa el envés de las hojas cada 2-3 días para detectar plagas a tiempo.',
-      },
-    ];
+    // Si no hay consejos que mostrar, la seccion desaparece en vez de
+    // ocupar espacio con una tarjeta vacia.
+    if (consejos.isEmpty) return const SizedBox.shrink();
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 8),
@@ -1597,7 +1355,7 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -1631,9 +1389,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 final consejo = consejos[index];
                 return _buildTipCard(
                   isDark,
-                  icon: consejo['icon'] as IconData,
-                  titulo: consejo['titulo'] as String,
-                  texto: consejo['texto'] as String,
+                  icon: consejo.icono,
+                  titulo: consejo.titulo,
+                  texto: consejo.contenido,
                 );
               },
             ),
@@ -1656,7 +1414,7 @@ class _HomeScreenState extends State<HomeScreen> {
         color: isDark ? AppColors.darkPrimaryBg : AppColors.primaryBg,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: AppColors.primaryLight.withOpacity(0.3),
+          color: AppColors.primaryLight.withValues(alpha: 0.3),
         ),
       ),
       child: Row(
@@ -1723,7 +1481,7 @@ class _HomeScreenState extends State<HomeScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
+          const Icon(
             Icons.event_available,
             size: 32,
             color: AppColors.primaryLight,

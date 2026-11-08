@@ -43,19 +43,57 @@ class AuthProvider extends ChangeNotifier {
       _usuario = await _auth.usuarioActual();
       _estado = EstadoSesion.autenticado;
     } on ApiException catch (e) {
-      // Sin red no tiene sentido mandar al login: el token puede seguir bueno.
-      // Preferimos pedir credenciales antes que dejar la app en un limbo.
-      _estado = EstadoSesion.noAutenticado;
-      _error = e.sinConexion ? e.mensaje : null;
+      // Sin respuesta del servidor no hay prueba de que la sesion haya
+      // caducado: puede ser un arranque en frio o un corte momentaneo. Si
+      // tenemos copia del usuario, se entra igual y la app se pondra al dia
+      // en la siguiente peticion. Obligar a iniciar sesion cada vez que el
+      // servidor tarda es la causa de que la sesion pareciera no durar.
+      if (e.sinConexion) {
+        final enCache = await _auth.usuarioEnCache();
+        if (enCache != null) {
+          _usuario = enCache;
+          _estado = EstadoSesion.autenticado;
+          notifyListeners();
+          return;
+        }
+        _estado = EstadoSesion.noAutenticado;
+        _error = e.mensaje;
+      } else {
+        // El servidor respondio y rechazo: la sesion caduco de verdad.
+        _estado = EstadoSesion.noAutenticado;
+        _error = 'Tu sesión ha expirado. Inicia sesión nuevamente';
+      }
     } catch (_) {
+      final enCache = await _auth.usuarioEnCache();
+      if (enCache != null) {
+        _usuario = enCache;
+        _estado = EstadoSesion.autenticado;
+        notifyListeners();
+        return;
+      }
       _estado = EstadoSesion.noAutenticado;
+      _error = 'Tu sesión ha expirado. Inicia sesión nuevamente';
     }
     notifyListeners();
   }
 
   Future<bool> iniciarSesion(String email, String password) {
     return _intentar(
-            () => _auth.iniciarSesion(email: email, password: password));
+      () => _auth.iniciarSesion(email: email, password: password),
+      mensaje: (e) {
+        // El backend puede distinguir correo inexistente de contrasena
+        // incorrecta; la interfaz no debe hacerlo. Un mensaje unico evita
+        // confirmar a un desconocido que un correo esta registrado.
+        if (e.codigo == 401) {
+          return 'Correo o contraseña incorrectos. Intenta de nuevo';
+        }
+        if (e.sinConexion) {
+          return 'No se pudo iniciar sesión. Verifica tu conexión e '
+              'inténtalo de nuevo';
+        }
+        return e.mensaje;
+      },
+    );
   }
 
   Future<bool> registrar({
@@ -64,7 +102,23 @@ class AuthProvider extends ChangeNotifier {
     required String password,
   }) {
     return _intentar(
-          () => _auth.registrar(email: email, password: password, nombre: nombre),
+      () => _auth.registrar(email: email, password: password, nombre: nombre),
+      mensaje: (e) {
+        // El backend responde "user already registered", en ingles y no
+        // siempre con 409, asi que ademas del codigo miramos el texto.
+        final detalle = e.mensaje.toLowerCase();
+        final correoRepetido = e.conflicto ||
+            detalle.contains('already registered') ||
+            detalle.contains('already exists') ||
+            detalle.contains('ya está registrado') ||
+            detalle.contains('ya existe');
+        if (correoRepetido) return 'Ese correo ya está en uso';
+        if (e.sinConexion) {
+          return 'No se pudo completar el registro. Verifica tu conexión e '
+              'inténtalo de nuevo';
+        }
+        return e.mensaje;
+      },
     );
   }
 
@@ -89,7 +143,10 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> _intentar(Future<Usuario> Function() accion) async {
+  Future<bool> _intentar(
+    Future<Usuario> Function() accion, {
+    String Function(ApiException)? mensaje,
+  }) async {
     _cargando = true;
     _error = null;
     notifyListeners();
@@ -99,10 +156,10 @@ class AuthProvider extends ChangeNotifier {
       _estado = EstadoSesion.autenticado;
       return true;
     } on ApiException catch (e) {
-      _error = e.mensaje;
+      _error = mensaje?.call(e) ?? e.mensaje;
       return false;
     } catch (e) {
-      _error = 'Ocurrio un error inesperado.';
+      _error = 'Ocurrió un error inesperado.';
       return false;
     } finally {
       _cargando = false;
@@ -113,7 +170,7 @@ class AuthProvider extends ChangeNotifier {
   void _sesionExpirada() {
     _usuario = null;
     _estado = EstadoSesion.noAutenticado;
-    _error = 'Tu sesion expiro. Vuelve a iniciar sesion.';
+    _error = 'Tu sesión ha expirado. Inicia sesión nuevamente';
     notifyListeners();
   }
 }

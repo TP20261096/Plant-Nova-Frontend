@@ -241,6 +241,10 @@ class Tratamiento {
   final int numAplicaciones;
   final String? nota;
 
+  /// Respaldo documental del remedio, para el final de la seccion de
+  /// tratamiento. Puede venir vacia.
+  final List<FuenteTratamiento> fuentes;
+
   const Tratamiento({
     this.recetaSlug,
     required this.nombre,
@@ -253,6 +257,7 @@ class Tratamiento {
     required this.frecuenciaDias,
     required this.numAplicaciones,
     required this.nota,
+    this.fuentes = const [],
   });
 
   factory Tratamiento.fromJson(Map<String, dynamic> json) {
@@ -268,6 +273,7 @@ class Tratamiento {
       frecuenciaDias: Json.entero(json['frecuencia_dias']),
       numAplicaciones: Json.entero(json['num_aplicaciones']),
       nota: Json.textoNulo(json['nota']),
+      fuentes: Json.lista(json['fuentes'], FuenteTratamiento.fromJson),
     );
   }
 
@@ -309,6 +315,23 @@ class Tratamiento {
     return '$numAplicaciones $aplicacion cada $frecuenciaDias '
         '${frecuenciaDias == 1 ? 'día' : 'días'}';
   }
+}
+
+/// Referencia externa que respalda un tratamiento (HU026.4).
+class FuenteTratamiento {
+  final String titulo;
+  final String? url;
+
+  const FuenteTratamiento({required this.titulo, required this.url});
+
+  factory FuenteTratamiento.fromJson(Map<String, dynamic> json) {
+    return FuenteTratamiento(
+      titulo: Json.texto(json['titulo'], siNulo: 'Fuente'),
+      url: Json.textoNulo(json['url']),
+    );
+  }
+
+  bool get tieneEnlace => url != null && url!.startsWith('http');
 }
 
 class Ingrediente {

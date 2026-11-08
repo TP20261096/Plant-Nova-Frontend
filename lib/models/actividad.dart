@@ -33,6 +33,11 @@ class Actividad {
 
   final bool proyectada;
 
+  /// Siguiente tarea pendiente de TODO el jardin. Solo viene poblada en la
+  /// respuesta de PATCH /activities/{id}; en los listados llega null.
+  /// Es lo que muestra la pantalla de confirmacion al completar una tarea.
+  final Actividad? proximaTarea;
+
   const Actividad({
     required this.id,
     required this.plantId,
@@ -49,6 +54,7 @@ class Actividad {
     required this.recetaNombre,
     required this.diagnosisId,
     required this.proyectada,
+    this.proximaTarea,
   });
 
   factory Actividad.fromJson(Map<String, dynamic> json) {
@@ -68,6 +74,10 @@ class Actividad {
       recetaNombre: Json.textoNulo(json['receta_nombre']),
       diagnosisId: Json.textoNulo(json['diagnosis_id']),
       proyectada: Json.booleano(json['proyectada']),
+      proximaTarea: json['proxima_tarea'] is Map
+          ? Actividad.fromJson(
+              Map<String, dynamic>.from(json['proxima_tarea'] as Map))
+          : null,
     );
   }
 

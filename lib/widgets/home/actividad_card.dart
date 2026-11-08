@@ -12,13 +12,13 @@ class ActividadCard extends StatelessWidget {
   final bool completando;
 
   const ActividadCard({
-    Key? key,
+    super.key,
     required this.actividad,
     this.onCompletar,
     this.onRevisar,
     this.onTap,
     this.completando = false,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -38,11 +38,11 @@ class ActividadCard extends StatelessWidget {
               color: isDark ? AppColors.darkSurface : AppColors.surface,
               borderRadius: BorderRadius.circular(12),
               border: actividad.atrasada
-                  ? Border.all(color: AppColors.error.withOpacity(0.5))
+                  ? Border.all(color: AppColors.error.withValues(alpha: 0.5))
                   : null,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+                  color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
                   blurRadius: 4,
                   offset: const Offset(0, 2),
                 ),
@@ -69,7 +69,7 @@ class ActividadCard extends StatelessWidget {
       width: 45,
       height: 45,
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Icon(actividad.tipo.icono, size: 22, color: color),
@@ -117,7 +117,7 @@ class ActividadCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
-              color: AppColors.error.withOpacity(0.12),
+              color: AppColors.error.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(6),
             ),
             child: Text(

@@ -16,7 +16,7 @@ import '../../providers/perfil_provider.dart';
 import '../../widgets/common/primary_button.dart';
 
 class EditarPerfilScreen extends StatefulWidget {
-  const EditarPerfilScreen({Key? key}) : super(key: key);
+  const EditarPerfilScreen({super.key});
 
   @override
   State<EditarPerfilScreen> createState() => _EditarPerfilScreenState();
@@ -26,6 +26,12 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nombreCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
+
+  // Del dialogo de cambio de contrasena: viven en el State para que su
+  // destruccion la gestione Flutter al desmontar la pantalla.
+  final _passActualCtrl = TextEditingController();
+  final _passNuevaCtrl = TextEditingController();
+
   final ImagePicker _picker = ImagePicker();
 
   bool _iniciado = false;
@@ -43,6 +49,8 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   void dispose() {
     _nombreCtrl.dispose();
     _emailCtrl.dispose();
+    _passActualCtrl.dispose();
+    _passNuevaCtrl.dispose();
     super.dispose();
   }
 
@@ -97,7 +105,8 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              provider.error ?? 'No se pudieron guardar los cambios',
+              provider.error ??
+                  'No se pudieron guardar los cambios. Inténtalo de nuevo',
               textAlign: TextAlign.center,
             ),
             backgroundColor: AppColors.error,
@@ -111,13 +120,28 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     final actualizado = provider.perfil;
     if (actualizado != null && mounted) {
       context.read<AuthProvider>().actualizarUsuario(actualizado.usuario);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Perfil actualizado correctamente'),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       Navigator.pop(context, true);
     }
   }
 
+  /// Los controladores del dialogo pertenecen al State, no al metodo.
+  ///
+  /// Creandolos y destruyendolos aqui dentro, el dispose ocurria mientras el
+  /// dialogo aun salia de pantalla y sus campos de texto seguian montados:
+  /// Flutter abortaba con "_dependents.isEmpty is not true" despues de que
+  /// el backend ya habia respondido 204 y la contrasena si habia cambiado.
   Future<void> _dialogoPassword() async {
-    final actualCtrl = TextEditingController();
-    final nuevaCtrl = TextEditingController();
+    final actualCtrl = _passActualCtrl..clear();
+    final nuevaCtrl = _passNuevaCtrl..clear();
     final formKeyDialog = GlobalKey<FormState>();
 
     bool ocultarActual = true;
@@ -143,7 +167,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: AppColors.primaryLight.withOpacity(0.12),
+                      color: AppColors.primaryLight.withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -352,15 +376,15 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
       ),
     );
 
-    actualCtrl.dispose();
-    nuevaCtrl.dispose();
+    final passwordActual = actualCtrl.text;
+    final passwordNueva = nuevaCtrl.text;
 
     if (ok != true || !mounted) return;
 
     final provider = context.read<PerfilProvider>();
     final exito = await provider.cambiarPassword(
-      actual: actualCtrl.text,
-      nueva: nuevaCtrl.text,
+      actual: passwordActual,
+      nueva: passwordNueva,
     );
 
     if (!mounted) return;
@@ -587,7 +611,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                   leading: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.primaryLight.withOpacity(0.12),
+                      color: AppColors.primaryLight.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(
@@ -909,7 +933,7 @@ class _ImageEditorScreenState extends State<_ImageEditorScreen> {
             child: Text(
               'La foto se mostrará en un círculo en tu perfil',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.7),
+                color: Colors.white.withValues(alpha: 0.7),
                 fontSize: 12,
               ),
               textAlign: TextAlign.center,

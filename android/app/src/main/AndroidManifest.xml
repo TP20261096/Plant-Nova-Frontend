@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Unico permiso que necesita la app. No se declara CAMERA: image_picker
+         abre la camara del sistema por intent y declararlo obligaria a pedir
+         un permiso en tiempo de ejecucion que hoy no hace falta. Tampoco se
+         pide ubicacion: el clima sale del distrito del perfil. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:label="PlantNova"
@@ -51,5 +53,4 @@
         </intent>
     </queries>
 
-    <uses-permission android:name="android.permission.INTERNET"/>
 </manifest>

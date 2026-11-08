@@ -3,7 +3,7 @@ import '/app/routes.dart';
 import '/app/theme/app_colors.dart';
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({Key? key}) : super(key: key);
+  const SplashScreen({super.key});
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -83,7 +83,7 @@ class _SplashScreenState extends State<SplashScreen>
                     borderRadius: BorderRadius.circular(36),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.15),
+                        color: Colors.black.withValues(alpha: 0.15),
                         blurRadius: 20,
                         offset: const Offset(0, 8),
                       ),
@@ -110,7 +110,7 @@ class _SplashScreenState extends State<SplashScreen>
                   'Cuida tus plantas naturalmente',
                   style: TextStyle(
                     fontSize: 15,
-                    color: Colors.white.withOpacity(0.85),
+                    color: Colors.white.withValues(alpha: 0.85),
                   ),
                 ),
               ],

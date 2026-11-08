@@ -25,11 +25,11 @@ class JardinScreen extends StatefulWidget {
   final VoidCallback? onIrAAnalizar; // <--- 1. Añadir el callback
 
   const JardinScreen({
-    Key? key,
+    super.key,
     this.isEmbedded = false,
     this.filtroInicial = FiltroJardin.todas,
     this.onIrAAnalizar,
-  }) : super(key: key);
+  });
 
   @override
   State<JardinScreen> createState() => _JardinScreenState();
@@ -56,9 +56,14 @@ class _JardinScreenState extends State<JardinScreen>
       case FiltroJardin.sanas:
         return lista.where((p) => p.estado == EstadoPlanta.sana).toList();
       case FiltroJardin.tratamiento:
-        return lista.where((p) => p.estado != EstadoPlanta.sana).toList();
+        // Solo las que realmente estan en tratamiento. Antes era
+        // "distinto de sana", que arrastraba las plantas sin diagnosticar.
+        // Una planta con revision pendiente sigue En_tratamiento, asi que
+        // entra en este filtro, como pide la historia.
+        return lista
+            .where((p) => p.estado == EstadoPlanta.enTratamiento)
+            .toList();
       case FiltroJardin.todas:
-      default:
         return lista;
     }
   }
@@ -186,8 +191,8 @@ class _JardinScreenState extends State<JardinScreen>
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: _filtroActivo == FiltroJardin.sanas
-                  ? AppColors.success.withOpacity(0.15)
-                  : AppColors.warning.withOpacity(0.15),
+                  ? AppColors.success.withValues(alpha: 0.15)
+                  : AppColors.warning.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(

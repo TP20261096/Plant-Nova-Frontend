@@ -52,7 +52,6 @@ class Planta {
   });
 
   factory Planta.fromJson(Map<String, dynamic> json) {
-    print('PLANTA JSON --> apodo: ${json['apodo']} | proximo_tipo: ${json['proximo_tipo']}'); // <--- AGREGA ESTO
     return Planta(
       id: Json.texto(json['id']),
       apodo: Json.texto(json['apodo']),

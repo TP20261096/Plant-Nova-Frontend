@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Guarda los tokens de sesion entre aperturas de la app.
@@ -13,9 +15,14 @@ class TokenStorage {
   static const String _kAccess = 'access_token';
   static const String _kRefresh = 'refresh_token';
 
+  /// Copia del usuario autenticado. Permite abrir la app sin esperar a
+  /// /auth/me, de modo que un servidor lento no obligue a iniciar sesion.
+  static const String _kUsuario = 'usuario_sesion';
+
   // Cache en memoria para no pegarle al disco en cada peticion.
   String? _access;
   String? _refresh;
+  Map<String, dynamic>? _usuario;
   bool _cargado = false;
 
   Future<void> _cargar() async {
@@ -23,6 +30,15 @@ class TokenStorage {
     final prefs = await SharedPreferences.getInstance();
     _access = prefs.getString(_kAccess);
     _refresh = prefs.getString(_kRefresh);
+
+    final crudo = prefs.getString(_kUsuario);
+    if (crudo != null) {
+      try {
+        _usuario = jsonDecode(crudo) as Map<String, dynamic>;
+      } catch (_) {
+        _usuario = null;
+      }
+    }
     _cargado = true;
   }
 
@@ -41,6 +57,19 @@ class TokenStorage {
     return _refresh != null;
   }
 
+  /// Usuario de la ultima sesion valida, o null si no hay copia.
+  Future<Map<String, dynamic>?> usuarioGuardado() async {
+    await _cargar();
+    return _usuario;
+  }
+
+  Future<void> guardarUsuario(Map<String, dynamic> usuario) async {
+    _usuario = usuario;
+    _cargado = true;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kUsuario, jsonEncode(usuario));
+  }
+
   Future<void> guardar({required String access, required String refresh}) async {
     _access = access;
     _refresh = refresh;
@@ -53,9 +82,11 @@ class TokenStorage {
   Future<void> limpiar() async {
     _access = null;
     _refresh = null;
+    _usuario = null;
     _cargado = true;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kAccess);
     await prefs.remove(_kRefresh);
+    await prefs.remove(_kUsuario);
   }
 }

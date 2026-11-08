@@ -4,7 +4,7 @@ import '/app/theme/app_colors.dart';
 import '/services/onboarding_service.dart';
 
 class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({Key? key}) : super(key: key);
+  const OnboardingScreen({super.key});
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -189,7 +189,7 @@ class _OnboardingSlide extends StatelessWidget {
             width: 160,
             height: 160,
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.1),
+              color: AppColors.primary.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(

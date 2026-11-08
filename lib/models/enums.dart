@@ -277,3 +277,27 @@ enum Dificultad {
     }
   }
 }
+// ---------------------------------------------------------------- tema
+
+/// Apariencia de la aplicacion. Se guarda en el perfil (PATCH /profile),
+/// no solo en el dispositivo, para que acompane al usuario entre telefonos.
+enum Tema {
+  sistema('Sistema', 'Automático'),
+  claro('Claro', 'Claro'),
+  oscuro('Oscuro', 'Oscuro');
+
+  const Tema(this.valor, this.etiqueta);
+
+  /// Lo que viaja al backend.
+  final String valor;
+
+  /// Lo que ve el usuario.
+  final String etiqueta;
+
+  static Tema desde(String? valor) {
+    return Tema.values.firstWhere(
+      (t) => t.valor == valor,
+      orElse: () => Tema.sistema,
+    );
+  }
+}

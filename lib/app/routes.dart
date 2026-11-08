@@ -4,8 +4,6 @@ import '../screens/onboarding/onboarding_screen.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/diagnosis/upload_plant_screen.dart';
 import '../screens/diagnosis/analyzing_screen.dart';
-import '../screens/plants/my_plants_screen.dart';
-import '../screens/plants/add_plant_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/diagnosis/diagnostico_resultado_screen.dart';
 import '../screens/auth/login_screen.dart';
@@ -26,9 +24,7 @@ class AppRoutes {
   static const String uploadPlant = '/upload-plant';
   static const String analyzing = '/analyzing';
   static const String diagnosisResult = '/diagnosis-result';
-  static const String myPlants = '/my-plants';
   static const String plantDetail = '/plant-detail';
-  static const String addPlant = '/add-plant';
   static const String history = '/history';
   static const String treatments = '/treatments';
   static const String profile = '/profile';
@@ -87,8 +83,6 @@ class AppRoutes {
     home: (context) => const HomeScreen(),
     uploadPlant: (context) => const UploadPlantScreen(),
     analyzing: (context) => const AnalyzingScreen(),
-    myPlants: (context) => const MyPlantsScreen(),
-    addPlant: (context) => const AddPlantScreen(),
     settings: (context) => const SettingsScreen(),
   };
 

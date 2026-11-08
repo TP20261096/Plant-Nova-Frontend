@@ -8,7 +8,7 @@ import '../../providers/auth_provider.dart';
 import '../../widgets/common/primary_button.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({Key? key}) : super(key: key);
+  const LoginScreen({super.key});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -47,7 +47,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (ok) {
       Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (_) => false);
     } else {
-      _mostrarError(auth.error ?? 'No se pudo iniciar sesion.');
+      _mostrarError(auth.error ?? 'No se pudo iniciar sesión.');
     }
   }
 
@@ -87,7 +87,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 32),
                   Text(
                     'Bienvenido de vuelta',
-                    style: AppTextStyles.displayMedium?.copyWith(
+                    style: AppTextStyles.displayMedium.copyWith(
                       color: AppColors.textPrimary,
                     ),
                     textAlign: TextAlign.center,
@@ -95,7 +95,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 8),
                   Text(
                     'Ingresa para ver tu huerto',
-                    style: AppTextStyles.bodyMedium?.copyWith(
+                    style: AppTextStyles.bodyMedium.copyWith(
                       color: AppColors.textSecondary,
                     ),
                     textAlign: TextAlign.center,
@@ -110,9 +110,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     decoration: _campo('Correo', Icons.mail_outline),
                     validator: (v) {
                       final texto = (v ?? '').trim();
-                      if (texto.isEmpty) return 'Ingresa tu correo';
+                      if (texto.isEmpty) return 'Ingrese su correo electrónico';
                       if (!texto.contains('@') || !texto.contains('.')) {
-                        return 'Correo no valido';
+                        return 'Ingrese un correo electrónico válido';
                       }
                       return null;
                     },
@@ -139,7 +139,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     validator: (v) =>
-                    (v ?? '').isEmpty ? 'Ingresa tu contrasena' : null,
+                    (v ?? '').isEmpty ? 'Ingrese su contraseña' : null,
                   ),
                   const SizedBox(height: 32),
                   PrimaryButton(
@@ -153,7 +153,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     children: [
                       Text(
                         'No tienes cuenta? ',
-                        style: AppTextStyles.bodyMedium?.copyWith(
+                        style: AppTextStyles.bodyMedium.copyWith(
                           color: AppColors.textSecondary,
                         ),
                       ),

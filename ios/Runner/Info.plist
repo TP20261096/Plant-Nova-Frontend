@@ -2,6 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- iOS cierra la app si abre la camara o la galeria sin estas
+	     descripciones. El texto es el que ve el usuario en el dialogo
+	     del sistema, asi que explica el para que, no el que. -->
+	<key>NSCameraUsageDescription</key>
+	<string>PlantNova usa la cámara para fotografiar la hoja de tu planta y analizar si tiene alguna enfermedad.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>PlantNova accede a tus fotos para que puedas analizar una imagen de tu planta que ya tenías guardada.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

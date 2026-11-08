@@ -23,7 +23,7 @@ class _ResultadoModalGuardar {
 }
 
 class DiagnosticoResultadoScreen extends StatefulWidget {
-  const DiagnosticoResultadoScreen({Key? key}) : super(key: key);
+  const DiagnosticoResultadoScreen({super.key});
 
   @override
   State<DiagnosticoResultadoScreen> createState() =>
@@ -123,7 +123,7 @@ class _DiagnosticoResultadoScreenState
                 color: isDark ? AppColors.darkBackground : AppColors.background,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
+                    color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
                     blurRadius: 8,
                     offset: const Offset(0, -2),
                   ),
@@ -325,7 +325,7 @@ class _DiagnosticoResultadoScreenState
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.04),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
             blurRadius: 6,
             offset: const Offset(0, 3),
           ),
@@ -397,7 +397,7 @@ class _DiagnosticoResultadoScreenState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
@@ -430,7 +430,8 @@ class _DiagnosticoResultadoScreenState
             Icons.warning_amber_rounded,
             AppColors.warning,
             'El modelo no está seguro',
-            'Confianza de ${d.confianzaTexto}. Toma la foto con buena luz.',
+            'Confianza de ${d.confianzaTexto}. Se le sugiere tomar de nuevo '
+                'la foto con buena luz y enfocando una sola hoja.',
           ),
         if (d.especieNoCoincide)
           _aviso(
@@ -453,9 +454,9 @@ class _DiagnosticoResultadoScreenState
       margin: const EdgeInsets.only(bottom: 0),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -556,7 +557,7 @@ class _DiagnosticoResultadoScreenState
                     borderRadius: BorderRadius.circular(3),
                     child: LinearProgressIndicator(
                       value: p.confianza > 1.0 ? p.confianza / 100.0 : p.confianza,
-                      backgroundColor: color.withOpacity(0.1),
+                      backgroundColor: color.withValues(alpha: 0.1),
                       valueColor: AlwaysStoppedAnimation<Color>(color),
                       minHeight: 3,
                     ),
@@ -583,7 +584,7 @@ class _DiagnosticoResultadoScreenState
                 width: 26,
                 height: 26,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.12),
+                  color: AppColors.primary.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(icono, size: 15, color: AppColors.primary),
@@ -634,7 +635,7 @@ class _DiagnosticoResultadoScreenState
                 width: 26,
                 height: 26,
                 decoration: BoxDecoration(
-                  color: AppColors.info.withOpacity(0.12),
+                  color: AppColors.info.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(Icons.water_drop_outlined,
@@ -694,6 +695,21 @@ class _DiagnosticoResultadoScreenState
       Diagnostico d,
       DiagnosticoProvider provider,
       ) {
+    // Por debajo del 60 % no se ofrece guardar (HU017.2): el backend
+    // tampoco deja vincular, devuelve 409. En su lugar se ofrece repetir
+    // la foto, que es lo unico util que puede hacer el usuario aqui.
+    if (d.confianzaBaja) {
+      return PrimaryButton(
+        text: 'Tomar otra foto',
+        icon: Icons.camera_alt_outlined,
+        // Volver atras deja al usuario en "Analizar planta": la pantalla de
+        // analisis se abrio con pushReplacement, asi que debajo esta Inicio
+        // con la pestana de captura activa. No limpiamos el provider porque
+        // guarda la planta asociada cuando la captura viene de una revision.
+        onPressed: () => Navigator.pop(context),
+      );
+    }
+
     // Si no está vinculado en absoluto (diagnóstico nuevo de cámara libre)
     if (!d.estaVinculado) {
       return PrimaryButton(
@@ -754,7 +770,7 @@ class _DiagnosticoResultadoScreenState
                   width: 72,
                   height: 72,
                   decoration: BoxDecoration(
-                    color: AppColors.success.withOpacity(0.15),
+                    color: AppColors.success.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
                   child: const Center(
@@ -824,8 +840,8 @@ class _DiagnosticoResultadoScreenState
       // También mejoramos el SnackBar cuando continúa con el tratamiento
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Row(
-            children: const [
+          content: const Row(
+            children: [
               Icon(Icons.event_note, color: Colors.white),
               SizedBox(width: 12),
               Expanded(
@@ -891,12 +907,22 @@ class _DiagnosticoResultadoScreenState
     Navigator.pop(context);
 
     if (ok) {
-      await context.read<PlantaProvider>().cargar(silencioso: true);
+      // Los providers se toman antes de los await: despues de uno el widget
+      // puede estar desmontado y el context deja de ser valido.
+      final plantaProvider = context.read<PlantaProvider>();
       final actividadProvider = context.read<ActividadProvider>();
-      await actividadProvider.seleccionarFecha(DateTime.now(), silencioso: true);
+      final perfilProvider = context.read<PerfilProvider>();
+
+      await plantaProvider.cargar(silencioso: true);
+
+      // Hay que recargar la semana entera, no solo el dia de hoy: al
+      // vincular, el backend programa el plan de tratamiento y esas tareas
+      // caen en fechas futuras. Con seleccionarFecha se leeria la semana
+      // en cache y no apareceria ninguna.
+      await actividadProvider.cargarSemana(silencioso: true);
 
       try {
-        await context.read<PerfilProvider>().cargar(silencioso: true);
+        await perfilProvider.cargar(silencioso: true);
       } catch (_) {}
 
       if (!context.mounted) return;
@@ -920,7 +946,7 @@ class _DiagnosticoResultadoScreenState
                   width: 64,
                   height: 64,
                   decoration: BoxDecoration(
-                    color: AppColors.success.withOpacity(0.12),
+                    color: AppColors.success.withValues(alpha: 0.12),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
@@ -1002,7 +1028,7 @@ class _DiagnosticoResultadoScreenState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
@@ -1021,7 +1047,7 @@ class _DiagnosticoResultadoScreenState
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -1091,7 +1117,7 @@ class _ImagenCompactaState extends State<_ImagenCompacta> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
+                color: AppColors.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
@@ -1157,11 +1183,11 @@ class _TratamientoCardState extends State<_TratamientoCard> {
         color: isDark ? AppColors.darkSurface : AppColors.surface,
         borderRadius: BorderRadius.circular(14),
         border: widget.principal
-            ? Border.all(color: AppColors.primary.withOpacity(0.5), width: 1.5)
+            ? Border.all(color: AppColors.primary.withValues(alpha: 0.5), width: 1.5)
             : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -1175,7 +1201,7 @@ class _TratamientoCardState extends State<_TratamientoCard> {
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.12),
+                color: AppColors.primary.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: const Row(
@@ -1317,7 +1343,7 @@ class _TratamientoCardState extends State<_TratamientoCard> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.warning.withOpacity(0.1),
+                  color: AppColors.warning.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
@@ -1353,9 +1379,61 @@ class _TratamientoCardState extends State<_TratamientoCard> {
                 ),
               ),
             ],
+            if (t.fuentes.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              _subtitulo('Fuentes'),
+              ...t.fuentes.map(_filaFuente),
+            ],
           ],
         ],
       ),
+    );
+  }
+
+  /// Respaldo documental del remedio (HU026.4). Si la fuente trae enlace se
+  /// abre en el navegador; si no, se muestra solo el titulo.
+  Widget _filaFuente(FuenteTratamiento fuente) {
+    final contenido = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          fuente.tieneEnlace ? Icons.link : Icons.menu_book_outlined,
+          size: 13,
+          color: fuente.tieneEnlace ? Colors.blue : AppColors.textTertiary,
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            fuente.titulo,
+            style: AppTextStyles.bodySmall.copyWith(
+              fontSize: 11,
+              height: 1.35,
+              color: fuente.tieneEnlace
+                  ? Colors.blue
+                  : AppColors.textSecondary,
+              decoration: fuente.tieneEnlace
+                  ? TextDecoration.underline
+                  : TextDecoration.none,
+              decorationColor: Colors.blue,
+            ),
+          ),
+        ),
+      ],
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 5),
+      child: fuente.tieneEnlace
+          ? InkWell(
+              onTap: () async {
+                final url = Uri.parse(fuente.url!);
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                }
+              },
+              child: contenido,
+            )
+          : contenido,
     );
   }
 
@@ -1497,7 +1575,7 @@ class _ModalGuardarPlantaConDiagnosticoState
                 height: 4,
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
-                  color: Colors.grey.withOpacity(0.3),
+                  color: Colors.grey.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1577,7 +1655,7 @@ class _ModalGuardarPlantaConDiagnosticoState
               ),
               const SizedBox(height: 6),
               DropdownButtonFormField<Ubicacion>(
-                value: _ubicacion,
+                initialValue: _ubicacion,
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
@@ -1667,10 +1745,10 @@ class _ModalGuardarPlantaConDiagnosticoState
                     final p = widget.plantasExistentes[index];
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: CircleAvatar(
+                      leading: const CircleAvatar(
                         backgroundColor: AppColors.primaryBg,
                         child:
-                        const Icon(Icons.eco, color: AppColors.primary),
+                        Icon(Icons.eco, color: AppColors.primary),
                       ),
                       title: Text(p.apodo),
                       subtitle: Text(p.especieVisible),
@@ -1715,14 +1793,14 @@ class _ModalGuardarPlantaConDiagnosticoState
         ),
         selected: seleccionado,
         onSelected: (_) => setState(() => _opcionRiego = index),
-        selectedColor: AppColors.primaryLight.withOpacity(0.25),
+        selectedColor: AppColors.primaryLight.withValues(alpha: 0.25),
         backgroundColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
           side: BorderSide(
             color: seleccionado
                 ? AppColors.primary
-                : Colors.grey.withOpacity(0.3),
+                : Colors.grey.withValues(alpha: 0.3),
           ),
         ),
       ),
