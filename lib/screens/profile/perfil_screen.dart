@@ -190,6 +190,8 @@ class _PerfilScreenState extends State<PerfilScreen> {
                                 '$totalTareas', 'tareas', isDark),
                           ],
                         ),
+                        const SizedBox(height: 10),
+                        _filaDistrito(perfil, isDark),
                       ],
                     ),
                   ),
@@ -274,6 +276,43 @@ class _PerfilScreenState extends State<PerfilScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  /// Distrito del usuario. No es decorativo: es lo que fija el clima con
+  /// el que el backend calcula el riego, asi que conviene que el usuario lo
+  /// vea y note si esta sin definir.
+  Widget _filaDistrito(Perfil perfil, bool isDark) {
+    final sinDistrito = !perfil.tieneDistrito;
+    final color = sinDistrito ? AppColors.warning : AppColors.primary;
+
+    return Row(
+      children: [
+        Icon(
+          sinDistrito ? Icons.error_outline : Icons.place_outlined,
+          size: 15,
+          color: color,
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            sinDistrito
+                ? 'Elige tu distrito para ajustar el riego a tu clima'
+                : perfil.distrito!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.bodySmall.copyWith(
+              fontSize: 12,
+              fontWeight: sinDistrito ? FontWeight.w600 : FontWeight.w500,
+              color: sinDistrito
+                  ? color
+                  : (isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.textSecondary),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

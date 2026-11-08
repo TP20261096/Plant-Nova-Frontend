@@ -137,6 +137,11 @@ class _DiagnosticoResultadoScreenState
   }
 
   Widget _buildTopSection(Diagnostico d, bool isDark) {
+    // read y no watch: el build de la pantalla ya observa este provider,
+    // asi que este bloque se reconstruye con el.
+    final especieNoCoincide =
+        context.read<DiagnosticoProvider>().especieNoCoincide;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
       child: Column(
@@ -156,9 +161,9 @@ class _DiagnosticoResultadoScreenState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _cabeceraCard(d, isDark),
-                      if (d.requiereAdvertencia) ...[
+                      if (d.requiereAdvertencia || especieNoCoincide) ...[
                         const SizedBox(height: 8),
-                        _advertencias(d),
+                        _advertencias(d, especieNoCoincide),
                       ],
                     ],
                   ),
@@ -422,7 +427,7 @@ class _DiagnosticoResultadoScreenState
     );
   }
 
-  Widget _advertencias(Diagnostico d) {
+  Widget _advertencias(Diagnostico d, bool especieNoCoincide) {
     return Column(
       children: [
         if (d.confianzaBaja)
@@ -433,7 +438,7 @@ class _DiagnosticoResultadoScreenState
             'Confianza de ${d.confianzaTexto}. Se le sugiere tomar de nuevo '
                 'la foto con buena luz y enfocando una sola hoja.',
           ),
-        if (d.especieNoCoincide)
+        if (especieNoCoincide)
           _aviso(
             Icons.error_outline,
             AppColors.error,
@@ -647,15 +652,28 @@ class _DiagnosticoResultadoScreenState
             ],
           ),
           const SizedBox(height: 10),
-          if (d.riegoFrecuenciaDias > 0)
+          // Esta es la recomendacion del diagnostico, sin ajustar. Al
+          // guardar la planta, el backend la corrige por el clima del
+          // distrito y la ubicacion, asi que el detalle puede mostrar un
+          // numero distinto; decirlo aqui evita que parezca contradictorio.
+          if (d.riegoFrecuenciaDias > 0) ...[
             Text(
-              'Riego cada ${d.riegoFrecuenciaDias} '
+              'Riego recomendado cada ${d.riegoFrecuenciaDias} '
                   '${d.riegoFrecuenciaDias == 1 ? 'día' : 'días'}',
               style: AppTextStyles.bodyMedium.copyWith(
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
               ),
             ),
+            Text(
+              'Al guardarla se ajusta al clima de tu distrito y a dónde la '
+              'tengas',
+              style: AppTextStyles.bodySmall.copyWith(
+                fontSize: 11,
+                color: AppColors.textTertiary,
+              ),
+            ),
+          ],
           if (d.riegoNota != null) ...[
             const SizedBox(height: 4),
             Text(
@@ -1471,6 +1489,7 @@ class _ModalGuardarPlantaConDiagnosticoState
     extends State<_ModalGuardarPlantaConDiagnostico> {
   late TextEditingController _apodoController;
   Ubicacion _ubicacion = Ubicacion.balcon;
+  String? _errorApodo;
 
   int _opcionRiego = 0;
   bool _creando = false;
@@ -1492,7 +1511,14 @@ class _ModalGuardarPlantaConDiagnosticoState
 
   Future<void> _guardarNuevaPlanta() async {
     final apodo = _apodoController.text.trim();
-    if (apodo.isEmpty) return;
+
+    // Antes era un return mudo: el boton no hacia nada y el usuario no
+    // tenia forma de saber que faltaba el apodo (HU018.2).
+    if (apodo.isEmpty) {
+      setState(() => _errorApodo = 'Ponle un nombre a tu planta');
+      return;
+    }
+    if (_errorApodo != null) setState(() => _errorApodo = null);
 
     setState(() => _creando = true);
 
@@ -1627,8 +1653,15 @@ class _ModalGuardarPlantaConDiagnosticoState
                       ? AppColors.darkTextPrimary
                       : AppColors.textPrimary,
                 ),
+                onChanged: (_) {
+                  // El aviso desaparece en cuanto empieza a escribir.
+                  if (_errorApodo != null) {
+                    setState(() => _errorApodo = null);
+                  }
+                },
                 decoration: InputDecoration(
                   hintText: 'Ej: Mi ${d.cultivo}',
+                  errorText: _errorApodo,
                   prefixIcon: const Icon(Icons.edit_outlined, size: 18),
                   filled: true,
                   fillColor: isDark
@@ -1676,7 +1709,11 @@ class _ModalGuardarPlantaConDiagnosticoState
                     borderSide: BorderSide.none,
                   ),
                 ),
-                items: Ubicacion.values.map((u) {
+                // opciones y no values: values incluye el comodin
+                // "Sin ubicacion", que existe solo para leer un valor que el
+                // backend no reconozca. Elegirlo enviaba cadena vacia y el
+                // registro fallaba.
+                items: Ubicacion.opciones.map((u) {
                   return DropdownMenuItem(
                     value: u,
                     child: Text(

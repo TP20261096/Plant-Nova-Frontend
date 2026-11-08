@@ -145,6 +145,12 @@ class _HomeScreenState extends State<HomeScreen> {
           // ejecutar su initState. Sin esto, los contadores de plantas,
           // diagnosticos y tareas se quedarian con el valor de la primera
           // vez que se abrio la pestana (HU004.2).
+          // Entrar a Captura empieza siempre sin planta asociada: la foto
+          // que se tome ahi es de una planta nueva, no de la ultima revision.
+          if (index == 2) {
+            context.read<DiagnosticoProvider>().limpiarPlanta();
+          }
+
           if (index == 4) {
             context.read<PerfilProvider>().cargar(silencioso: true);
           }

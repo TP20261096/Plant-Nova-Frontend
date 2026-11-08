@@ -100,9 +100,15 @@ class AuthProvider extends ChangeNotifier {
     required String nombre,
     required String email,
     required String password,
+    required String distrito,
   }) {
     return _intentar(
-      () => _auth.registrar(email: email, password: password, nombre: nombre),
+      () => _auth.registrar(
+        email: email,
+        password: password,
+        nombre: nombre,
+        distrito: distrito,
+      ),
       mensaje: (e) {
         // El backend responde "user already registered", en ingles y no
         // siempre con 409, asi que ademas del codigo miramos el texto.

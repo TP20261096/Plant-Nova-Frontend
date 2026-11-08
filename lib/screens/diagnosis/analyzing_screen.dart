@@ -146,7 +146,17 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
+    // Bloquea el boton Atras del dispositivo mientras dura el analisis
+    // (HU012.2). La pantalla ya no muestra flecha de regreso, pero el gesto
+    // del sistema si sacaba al usuario y dejaba la peticion en curso sin
+    // nadie que recogiera su resultado.
+    //
+    // canPop solo frena el retroceso del sistema: los Navigator.pop y
+    // pushReplacement que hace la propia pantalla al terminar o al fallar
+    // siguen funcionando.
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
       body: SafeArea(
         child: Column(
@@ -269,6 +279,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
             ),
           ],
         ),
+      ),
       ),
     );
   }

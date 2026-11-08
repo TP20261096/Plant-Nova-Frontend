@@ -197,7 +197,11 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
                   context,
                   entry.value,
                   isDark,
-                  diagnosticNumber: entry.key + 1,
+                  // La lista viene del mas reciente al mas antiguo, asi que
+                  // la posicion no es el orden en que se hicieron: se cuenta
+                  // desde el final. Con entry.key + 1 el diagnostico recien
+                  // tomado salia rotulado como "Primer diagnostico".
+                  diagnosticNumber: diagnosticos.length - entry.key,
                 );
               }),
           ],
@@ -430,6 +434,22 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
                   style: AppTextStyles.bodySmall
                       .copyWith(color: AppColors.textSecondary),
                 ),
+                // Esta frecuencia no es la de la guia: es la de la especie o
+                // el diagnostico corregida por el clima del distrito y la
+                // ubicacion de la planta. Sin decirlo, el usuario ve "cada 3
+                // dias" en la guia y "cada 4" aqui y lo lee como un error.
+                if (planta.riegoFrecuenciaDias > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      'Ajustado al clima de tu distrito y a la ubicación '
+                      'de la planta',
+                      style: AppTextStyles.bodySmall.copyWith(
+                        fontSize: 11,
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -660,19 +680,7 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
               children: [
                 Row(
                   children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: diagnosis.estado.color.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.health_and_safety,
-                        color: diagnosis.estado.color,
-                        size: 20,
-                      ),
-                    ),
+                    _miniaturaDiagnostico(diagnosis),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -739,6 +747,43 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  /// Miniatura de la foto analizada (HU021.3).
+  ///
+  /// Es lo que permite distinguir un diagnostico de otro de un vistazo.
+  /// Antes habia un icono fijo igual en todas las tarjetas.
+  ///
+  /// El enlace es firmado y caduca en una hora, pero esta pantalla vuelve a
+  /// pedir la planta cada vez que se abre, asi que llega recien firmado. Si
+  /// aun asi fallara, se cae al icono en lugar de dejar un hueco.
+  Widget _miniaturaDiagnostico(DiagnosticoResumen diagnosis) {
+    final url = diagnosis.imagenUrl;
+
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: diagnosis.estado.color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: url == null
+          ? Icon(
+              Icons.health_and_safety,
+              color: diagnosis.estado.color,
+              size: 20,
+            )
+          : Image.network(
+              url,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Icon(
+                Icons.health_and_safety,
+                color: diagnosis.estado.color,
+                size: 20,
+              ),
+            ),
     );
   }
 

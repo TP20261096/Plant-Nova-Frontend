@@ -93,10 +93,14 @@ class _UploadPlantScreenState extends State<UploadPlantScreen> {
 
     context.read<DiagnosticoProvider>().seleccionarImagen(_imagePath);
 
-    // Si viene del jardín o es revisión, pasar el ID de la planta
-    if (_plantId != null) {
-      context.read<DiagnosticoProvider>().fijarPlanta(_plantId);
-    }
+    // Siempre se declara la planta asociada, incluso cuando es null.
+    //
+    // Antes solo se fijaba si habia una, de modo que el valor de una captura
+    // anterior sobrevivia: tras una revision, la siguiente foto tomada desde
+    // la pestana de Captura seguia creyendo que pertenecia a aquella planta.
+    // Esta pantalla vive dentro de Inicio y su initState corre una sola vez
+    // al arrancar, asi que no habia ningun otro momento donde limpiarlo.
+    context.read<DiagnosticoProvider>().fijarPlanta(_plantId);
 
     // 🚀 RECUPERAR EL ARGUMENTO DE REVISIÓN ACTUAL
     final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;

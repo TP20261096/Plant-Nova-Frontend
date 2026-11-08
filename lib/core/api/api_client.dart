@@ -104,7 +104,7 @@ class ApiClient {
       await _http.send(peticion).timeout(ApiConfig.timeoutDiagnostico);
       respuesta = await http.Response.fromStream(streamed);
     } on TimeoutException {
-      throw const ApiException(0, 'El analisis tardo demasiado. Intenta de nuevo.');
+      throw const ApiException(0, 'El análisis tardó demasiado. Intenta de nuevo.');
     } catch (e) {
       throw ApiException(0, _mensajeDeRed(e));
     }
@@ -149,7 +149,7 @@ class ApiClient {
       respuesta = await _ejecutar(metodo, uri, headers, cuerpo)
           .timeout(ApiConfig.timeout);
     } on TimeoutException {
-      throw const ApiException(0, 'El servidor no responde. Revisa tu conexion.');
+      throw const ApiException(0, 'El servidor no responde. Revisa tu conexión.');
     } catch (e) {
       throw ApiException(0, _mensajeDeRed(e));
     }
@@ -282,30 +282,30 @@ class ApiClient {
   String _mensajeGenerico(int codigo) {
     switch (codigo) {
       case 400:
-        return 'Los datos enviados no son validos.';
+        return 'Los datos enviados no son válidos.';
       case 401:
-        return 'Tu sesion expiro. Vuelve a iniciar sesion.';
+        return 'Tu sesión ha expirado. Inicia sesión nuevamente';
       case 404:
         return 'No encontramos lo que buscabas.';
       case 409:
-        return 'Esa accion ya se realizo.';
+        return 'Esa acción ya se realizó.';
       case 413:
-        return 'La imagen pesa mas de 10 MB.';
+        return 'La imagen pesa más de 10 MB.';
       case 415:
         return 'Formato de imagen no admitido. Usa JPG, PNG o WEBP.';
       case 500:
-        return 'Error del servidor. Intenta mas tarde.';
+        return 'Error del servidor. Intenta más tarde.';
       default:
-        return 'Ocurrio un error inesperado ($codigo).';
+        return 'Ocurrió un error inesperado ($codigo).';
     }
   }
 
   String _mensajeDeRed(Object e) {
     if (e is SocketException || e is http.ClientException) {
       return 'No se pudo conectar con el servidor. '
-          'Revisa que el backend este corriendo y la URL sea correcta.';
+          'Revisa tu conexión e inténtalo de nuevo.';
     }
-    return 'Error de conexion: $e';
+    return 'Error de conexión: $e';
   }
 
   // -------------------------------------------------------------- helpers

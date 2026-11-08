@@ -5,6 +5,7 @@ import '../../app/routes.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/perfil_provider.dart';
 import '../legal/terminos_screen.dart';
 import '../../widgets/common/primary_button.dart';
 
@@ -23,6 +24,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _confirmCtrl = TextEditingController();
   bool _verPassword = false;
   bool _aceptaTerminos = false;
+  String? _distrito;
+
+  @override
+  void initState() {
+    super.initState();
+    // La lista de distritos es publica: se puede pedir sin haber entrado.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<PerfilProvider>().cargarDistritos();
+    });
+  }
 
   @override
   void dispose() {
@@ -36,6 +47,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Future<void> _registrar() async {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
+
+    if (_distrito == null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Elige tu distrito'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      return;
+    }
 
     if (!_aceptaTerminos) {
       ScaffoldMessenger.of(context)
@@ -55,6 +79,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       nombre: _nombreCtrl.text,
       email: _emailCtrl.text,
       password: _passCtrl.text,
+      distrito: _distrito!,
     );
 
     if (!mounted) return;
@@ -210,6 +235,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ? 'Las contraseñas no coinciden'
                       : null,
                 ),
+                const SizedBox(height: 18),
+
+                _selectorDistrito(),
                 const SizedBox(height: 24),
 
                 _casillaTerminos(),
@@ -263,6 +291,41 @@ class _RegisterScreenState extends State<RegisterScreen> {
   /// Aceptacion explicita antes de crear la cuenta. El enlace abre el
   /// texto completo sin sacar al usuario del formulario, para que no pierda
   /// lo que ya escribio.
+  /// Distrito de residencia.
+  ///
+  /// Se pide al crear la cuenta porque fija el clima con el que el backend
+  /// calcula el riego: sin el, las primeras plantas se programarian con el
+  /// de Lima centro. Es un selector y no texto libre porque el backend
+  /// valida contra su catalogo y rechaza cualquier otra cosa.
+  Widget _selectorDistrito() {
+    final distritos = context.watch<PerfilProvider>().distritos;
+
+    if (distritos.isEmpty) {
+      return InputDecorator(
+        decoration: _campo('Distrito', Icons.place_outlined),
+        child: Text(
+          'Cargando distritos...',
+          style: AppTextStyles.bodyMedium.copyWith(
+            fontSize: 14,
+            color: AppColors.textTertiary,
+          ),
+        ),
+      );
+    }
+
+    return DropdownButtonFormField<String>(
+      initialValue: _distrito,
+      isExpanded: true,
+      decoration: _campo('Distrito', Icons.place_outlined),
+      hint: const Text('Elige tu distrito'),
+      items: distritos
+          .map((d) => DropdownMenuItem(value: d, child: Text(d)))
+          .toList(),
+      onChanged: (valor) => setState(() => _distrito = valor),
+      validator: (v) => v == null ? 'Elige tu distrito' : null,
+    );
+  }
+
   Widget _casillaTerminos() {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,

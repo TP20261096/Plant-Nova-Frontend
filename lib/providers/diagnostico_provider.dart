@@ -21,6 +21,15 @@ class DiagnosticoProvider extends ChangeNotifier {
   String? _plantId;
 
   Diagnostico? _actual;
+
+  /// Si la captura actual se hizo sobre una planta que ya estaba registrada.
+  ///
+  /// Hace falta porque especie_confirmada llega en false tanto cuando el
+  /// cultivo no coincide como cuando no habia ninguna especie con la que
+  /// comparar, y la bandera se calcula en el momento de la captura. Sin
+  /// este dato, un diagnostico nuevo mostraba "la especie no coincide"
+  /// despues de vincularlo, cuando en realidad no habia nada que comparar.
+  bool _capturaSobrePlanta = false;
   bool _analizando = false;
   bool _vinculando = false;
   String? _error;
@@ -31,6 +40,11 @@ class DiagnosticoProvider extends ChangeNotifier {
   bool get analizando => _analizando;
   bool get vinculando => _vinculando;
   String? get error => _error;
+
+  /// Solo tiene sentido avisar de una especie distinta cuando la foto se
+  /// tomo para una planta que ya tenia especie: el caso de la revision.
+  bool get especieNoCoincide =>
+      _capturaSobrePlanta && _actual != null && !_actual!.especieConfirmada;
 
   void seleccionarImagen(String? ruta) {
     _imagen = ruta == null ? null : File(ruta);
@@ -56,6 +70,9 @@ class DiagnosticoProvider extends ChangeNotifier {
     _analizando = true;
     _error = null;
     _actual = null;
+    // Se fija ahora, antes de la peticion: es el unico momento en que se
+    // sabe si la captura pertenecia a una planta ya registrada.
+    _capturaSobrePlanta = _plantId != null;
     notifyListeners();
 
     try {
@@ -78,6 +95,9 @@ class DiagnosticoProvider extends ChangeNotifier {
   Future<bool> cargar(String id) async {
     _analizando = true;
     _error = null;
+    // Un diagnostico abierto desde el historial se consulta, no se juzga:
+    // no se puede saber si en su momento habia especie con que comparar.
+    _capturaSobrePlanta = false;
     notifyListeners();
 
     try {
@@ -112,6 +132,9 @@ class DiagnosticoProvider extends ChangeNotifier {
         diagnosticoId: diagnostico.id,
         plantId: plantId,
       );
+      // El flujo de esta captura termino aqui: la planta asociada no debe
+      // heredarla la siguiente foto que tome el usuario.
+      _plantId = null;
       return true;
     } on ApiException catch (e) {
       _error = e.conflicto
@@ -139,6 +162,7 @@ class DiagnosticoProvider extends ChangeNotifier {
     _imagen = null;
     _actual = null;
     _plantId = null;
+    _capturaSobrePlanta = false;
     _error = null;
     _analizando = false;
     _vinculando = false;

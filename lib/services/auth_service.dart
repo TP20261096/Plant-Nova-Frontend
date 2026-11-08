@@ -11,11 +11,13 @@ class AuthService {
     required String email,
     required String password,
     required String nombre,
+    required String distrito,
   }) async {
     final datos = await _api.post('/auth/register', body: {
       'email': email.trim(),
       'password': password,
       'nombre': nombre.trim(),
+      'distrito': distrito,
     });
     return _guardarSesion(datos as Map<String, dynamic>);
   }

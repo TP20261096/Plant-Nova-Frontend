@@ -125,7 +125,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     onFieldSubmitted: (_) => _entrar(),
                     style: estiloInput,
                     decoration: _campo(
-                      'Contrasena',
+                      'Contraseña',
                       Icons.lock_outline,
                       sufijo: IconButton(
                         icon: Icon(
@@ -143,7 +143,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 32),
                   PrimaryButton(
-                    text: 'Iniciar sesion',
+                    text: 'Iniciar sesión',
                     isLoading: cargando,
                     onPressed: _entrar,
                   ),
@@ -152,7 +152,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        'No tienes cuenta? ',
+                        '¿No tienes cuenta? ',
                         style: AppTextStyles.bodyMedium.copyWith(
                           color: AppColors.textSecondary,
                         ),
@@ -163,7 +163,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             : () => Navigator.pushNamed(
                             context, AppRoutes.registro),
                         child: const Text(
-                          'Registrate',
+                          'Regístrate',
                           style: TextStyle(
                             color: AppColors.primary,
                             fontWeight: FontWeight.w600,

@@ -35,6 +35,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   final ImagePicker _picker = ImagePicker();
 
   bool _iniciado = false;
+  String? _distrito;
   File? _nuevaFotoFile;
 
   @override
@@ -55,16 +56,22 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   }
 
   Future<void> _cargarDatos() async {
-    final perfil = context.read<PerfilProvider>().perfil;
+    final provider = context.read<PerfilProvider>();
+    final perfil = provider.perfil;
     if (!mounted) return;
 
     setState(() {
       if (perfil != null) {
         _nombreCtrl.text = perfil.nombre;
         _emailCtrl.text = perfil.email;
+        _distrito = perfil.distrito;
       }
       _iniciado = true;
     });
+
+    // La lista llega del backend: el distrito se valida contra ella y un
+    // texto libre devuelve 400. Por eso es un selector y no un campo.
+    await provider.cargarDistritos();
   }
 
   Future<void> _guardar() async {
@@ -96,6 +103,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
       nombre: _nombreCtrl.text.trim() == perfil.nombre
           ? null
           : _nombreCtrl.text.trim(),
+      distrito: _distrito == perfil.distrito ? null : _distrito,
     );
 
     if (!form.vacio) {
@@ -139,6 +147,54 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   /// dialogo aun salia de pantalla y sus campos de texto seguian montados:
   /// Flutter abortaba con "_dependents.isEmpty is not true" despues de que
   /// el backend ya habia respondido 204 y la contrasena si habia cambiado.
+  /// Selector de distrito.
+  ///
+  /// El distrito decide el clima de referencia con el que el backend
+  /// calcula el riego de todas las plantas, asi que cambiarlo los recalcula
+  /// y esa peticion tarda algo mas de lo normal.
+  Widget _selectorDistrito(bool isDark) {
+    final distritos = context.watch<PerfilProvider>().distritos;
+
+    if (distritos.isEmpty) {
+      return InputDecorator(
+        decoration: const InputDecoration(
+          labelText: 'Distrito',
+          prefixIcon: Icon(Icons.place_outlined),
+        ),
+        child: Text(
+          _distrito ?? 'Cargando distritos...',
+          style: AppTextStyles.bodyMedium.copyWith(
+            fontSize: 14,
+            color: AppColors.textTertiary,
+          ),
+        ),
+      );
+    }
+
+    return DropdownButtonFormField<String>(
+      // Si el distrito guardado no esta en la lista (porque cambio el
+      // catalogo), se muestra vacio en vez de reventar.
+      initialValue: distritos.contains(_distrito) ? _distrito : null,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: 'Distrito',
+        prefixIcon: const Icon(Icons.place_outlined),
+        helperText: 'Define el clima con el que se calcula tu riego',
+        helperStyle: TextStyle(
+          fontSize: 11,
+          color: isDark
+              ? AppColors.darkTextTertiary
+              : AppColors.textTertiary,
+        ),
+      ),
+      hint: const Text('Elige tu distrito'),
+      items: distritos
+          .map((d) => DropdownMenuItem(value: d, child: Text(d)))
+          .toList(),
+      onChanged: (valor) => setState(() => _distrito = valor),
+    );
+  }
+
   Future<void> _dialogoPassword() async {
     final actualCtrl = _passActualCtrl..clear();
     final nuevaCtrl = _passNuevaCtrl..clear();
@@ -590,6 +646,9 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                   ),
                 ),
               ),
+              const SizedBox(height: 18),
+
+              _selectorDistrito(isDark),
               const SizedBox(height: 24),
 
               Container(

@@ -197,11 +197,14 @@ class Diagnostico {
     return null;
   }
 
-  /// El cultivo detectado no coincide con la especie registrada.
-  bool get especieNoCoincide => estaVinculado && !especieConfirmada;
-
-  /// true si hay algo que advertirle al usuario antes de que confie en esto.
-  bool get requiereAdvertencia => confianzaBaja || especieNoCoincide;
+  /// Si hay algo que advertirle al usuario sobre el propio diagnostico.
+  ///
+  /// La discrepancia de especie NO se decide aqui: especie_confirmada llega
+  /// en false tanto cuando el cultivo no coincide como cuando no habia
+  /// especie con la que comparar, y distinguir los dos casos exige saber si
+  /// la captura se hizo sobre una planta ya registrada. Eso lo sabe
+  /// DiagnosticoProvider.especieNoCoincide.
+  bool get requiereAdvertencia => confianzaBaja;
 }
 
 /// Una de las tres clases mas probables que devolvio el modelo.
@@ -311,7 +314,7 @@ class Tratamiento {
     if (numAplicaciones == 0) {
       return 'Aplicar cada $frecuenciaDias${frecuenciaDias == 1 ? 'día' : 'días'}';
     }
-    final aplicacion = numAplicaciones == 1 ? 'aplicación' : 'aplicacions';
+    final aplicacion = numAplicaciones == 1 ? 'aplicación' : 'aplicaciones';
     return '$numAplicaciones $aplicacion cada $frecuenciaDias '
         '${frecuenciaDias == 1 ? 'día' : 'días'}';
   }
