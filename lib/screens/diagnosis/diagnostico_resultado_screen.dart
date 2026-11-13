@@ -375,7 +375,7 @@ class _DiagnosticoResultadoScreenState
               style: AppTextStyles.bodySmall.copyWith(
                 fontStyle: FontStyle.italic,
                 fontSize: 10,
-                color: AppColors.textSecondary,
+                color: AppColors.textoSuave(context),
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -498,6 +498,17 @@ class _DiagnosticoResultadoScreenState
   }
 
   Widget _top3Compacto(Diagnostico d, bool isDark) {
+    // El modelo puede devolver dos clases distintas con el mismo nombre,
+    // porque hay enfermedades que existen para varios cultivos: el tizon
+    // temprano y el tardio estan en papa y en tomate, y "Planta sana" en
+    // los ocho. Se cuentan para saber a cuales anadirles el cultivo; sin
+    // esto el Top 3 muestra la misma enfermedad repetida.
+    final vecesPorNombre = <String, int>{};
+    for (final p in d.top3) {
+      vecesPorNombre[p.nombreEnfermedad] =
+          (vecesPorNombre[p.nombreEnfermedad] ?? 0) + 1;
+    }
+
     return _tarjeta(
       isDark,
       child: Column(
@@ -526,11 +537,17 @@ class _DiagnosticoResultadoScreenState
                 ? AppColors.info
                 : AppColors.textTertiary;
 
-            final nombreVisible = p.nombreEnfermedad.isNotEmpty
+            var nombreVisible = p.nombreEnfermedad.isNotEmpty
                 ? p.nombreEnfermedad
                 : p.claseRaw
                 .replaceAll('___', ' · ')
                 .replaceAll('_', ' ');
+
+            final cultivo = p.cultivo;
+            if (cultivo != null &&
+                (vecesPorNombre[p.nombreEnfermedad] ?? 0) > 1) {
+              nombreVisible = '$nombreVisible · $cultivo';
+            }
 
             return Padding(
               padding: const EdgeInsets.only(bottom: 6),
@@ -561,7 +578,11 @@ class _DiagnosticoResultadoScreenState
                   ClipRRect(
                     borderRadius: BorderRadius.circular(3),
                     child: LinearProgressIndicator(
-                      value: p.confianza > 1.0 ? p.confianza / 100.0 : p.confianza,
+                      // La confianza es un porcentaje. La condicion
+                      // anterior ("si es mayor que 1, dividir") trataba un
+                      // 0.31 % como la fraccion 0.31 y llenaba un tercio de
+                      // la barra junto a una etiqueta que decia 0 %.
+                      value: p.fraccion,
                       backgroundColor: color.withValues(alpha: 0.1),
                       valueColor: AlwaysStoppedAnimation<Color>(color),
                       minHeight: 3,
@@ -697,8 +718,8 @@ class _DiagnosticoResultadoScreenState
                 fontSize: 13,
                 color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
               ),
-              linkStyle: const TextStyle(
-                color: Colors.blue,
+              linkStyle: TextStyle(
+                color: AppColors.enlace(context),
                 decoration: TextDecoration.none,
               ),
             ),
@@ -1290,6 +1311,44 @@ class _TratamientoCardState extends State<_TratamientoCard> {
             Text(t.descripcion,
                 style: AppTextStyles.bodyMedium
                     .copyWith(height: 1.5, fontSize: 13)),
+            // La receta puede ser la misma para varias enfermedades: el
+            // bicarbonato sirve igual para tizon temprano que para
+            // Septoria. Lo que cambia entre una y otra es esta nota, que
+            // el API enviaba y la pantalla no mostraba, de modo que los
+            // dos tratamientos se veian identicos.
+            if ((t.nota ?? '').isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border(
+                    left: BorderSide(color: AppColors.primary, width: 3),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'PARA ESTA ENFERMEDAD',
+                      style: AppTextStyles.labelMedium.copyWith(
+                        fontSize: 10,
+                        letterSpacing: 0.6,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      t.nota!,
+                      style: AppTextStyles.bodyMedium
+                          .copyWith(height: 1.45, fontSize: 12.5),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             if (t.ingredientes.isNotEmpty) ...[
               const SizedBox(height: 14),
               _subtitulo('Ingredientes'),
@@ -1385,10 +1444,10 @@ class _TratamientoCardState extends State<_TratamientoCard> {
                         style: AppTextStyles.bodySmall.copyWith(
                           fontSize: 11,
                           height: 1.4,
-                          color: Colors.black87,
+                          color: AppColors.texto(context),
                         ),
-                        linkStyle: const TextStyle(
-                          color: Colors.blue,
+                        linkStyle: TextStyle(
+                          color: AppColors.enlace(context),
                           decoration: TextDecoration.none,
                         ),
                       ),
@@ -1417,7 +1476,9 @@ class _TratamientoCardState extends State<_TratamientoCard> {
         Icon(
           fuente.tieneEnlace ? Icons.link : Icons.menu_book_outlined,
           size: 13,
-          color: fuente.tieneEnlace ? Colors.blue : AppColors.textTertiary,
+          color: fuente.tieneEnlace
+              ? AppColors.enlace(context)
+              : AppColors.textoTenue(context),
         ),
         const SizedBox(width: 6),
         Expanded(
@@ -1427,12 +1488,12 @@ class _TratamientoCardState extends State<_TratamientoCard> {
               fontSize: 11,
               height: 1.35,
               color: fuente.tieneEnlace
-                  ? Colors.blue
-                  : AppColors.textSecondary,
+                  ? AppColors.enlace(context)
+                  : AppColors.textoSuave(context),
               decoration: fuente.tieneEnlace
                   ? TextDecoration.underline
                   : TextDecoration.none,
-              decorationColor: Colors.blue,
+              decorationColor: AppColors.enlace(context),
             ),
           ),
         ),
@@ -1824,7 +1885,9 @@ class _ModalGuardarPlantaConDiagnosticoState
           label,
           style: TextStyle(
             fontSize: 11,
-            color: seleccionado ? AppColors.primary : AppColors.textSecondary,
+            color: seleccionado
+                ? AppColors.primary
+                : AppColors.textoSuave(context),
             fontWeight: seleccionado ? FontWeight.w700 : FontWeight.normal,
           ),
         ),

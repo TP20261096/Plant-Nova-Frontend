@@ -227,7 +227,45 @@ class Prediccion {
     );
   }
 
-  String get confianzaTexto => '${confianza.round()}%';
+  /// La confianza llega como porcentaje (0 a 100).
+  double get fraccion => (confianza / 100).clamp(0.0, 1.0);
+
+  /// Redondear a cero una confianza de 0.3 % haria creer que la clase fue
+  /// descartada del todo, cuando el modelo si le asigno algo.
+  String get confianzaTexto {
+    if (confianza > 0 && confianza < 0.5) return '<1%';
+    return '${confianza.round()}%';
+  }
+
+  /// Cultivo al que pertenece esta clase, deducido de clase_raw.
+  ///
+  /// Hace falta porque hay nombres de enfermedad que se repiten entre
+  /// cultivos: el tizon temprano y el tardio existen para papa y para
+  /// tomate, y "Planta sana" para los ocho. Sin el cultivo, el Top 3
+  /// muestra la misma enfermedad dos veces.
+  String? get cultivo {
+    final prefijo = claseRaw.split('_').first.toLowerCase();
+    switch (prefijo) {
+      case 'tomato':
+        return 'tomate';
+      case 'potato':
+        return 'papa';
+      case 'corn':
+        return 'maíz';
+      case 'bell':
+        return 'pimiento';
+      case 'brinjal':
+        return 'berenjena';
+      case 'cabbage':
+        return 'repollo';
+      case 'citrus':
+        return 'cítricos';
+      case 'lettuce':
+        return 'lechuga';
+      default:
+        return null;
+    }
+  }
 }
 
 /// Receta casera con su preparacion y su plan de aplicacion.

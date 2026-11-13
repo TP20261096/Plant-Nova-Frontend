@@ -432,7 +432,7 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
                       : 'Cada ${planta.riegoFrecuenciaDias} '
                       '${planta.riegoFrecuenciaDias == 1 ? 'día' : 'días'}',
                   style: AppTextStyles.bodySmall
-                      .copyWith(color: AppColors.textSecondary),
+                      .copyWith(color: AppColors.textoSuave(context)),
                 ),
                 // Esta frecuencia no es la de la guia: es la de la especie o
                 // el diagnostico corregida por el clima del distrito y la
@@ -495,13 +495,13 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
       children: [
         SizedBox(
           width: 24,
-          child: Icon(icono, size: 18, color: AppColors.textTertiary),
+          child: Icon(icono, size: 18, color: AppColors.textoTenue(context)),
         ),
         const SizedBox(width: 10),
         Text(
           etiqueta,
           style: AppTextStyles.bodyMedium
-              .copyWith(color: AppColors.textSecondary),
+              .copyWith(color: AppColors.textoSuave(context)),
         ),
         const Spacer(),
         Text(
@@ -590,8 +590,8 @@ class _PlantaDetalleScreenState extends State<PlantaDetalleScreen> {
                 height: 1.5,
                 color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
               ),
-              linkStyle: const TextStyle(
-                color: Colors.blue,
+              linkStyle: TextStyle(
+                color: AppColors.enlace(context),
                 decoration: TextDecoration.none,
               ),
             ),

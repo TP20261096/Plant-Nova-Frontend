@@ -31,6 +31,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   // destruccion la gestione Flutter al desmontar la pantalla.
   final _passActualCtrl = TextEditingController();
   final _passNuevaCtrl = TextEditingController();
+  final _passConfirmarCtrl = TextEditingController();
 
   final ImagePicker _picker = ImagePicker();
 
@@ -52,6 +53,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     _emailCtrl.dispose();
     _passActualCtrl.dispose();
     _passNuevaCtrl.dispose();
+    _passConfirmarCtrl.dispose();
     super.dispose();
   }
 
@@ -198,10 +200,12 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   Future<void> _dialogoPassword() async {
     final actualCtrl = _passActualCtrl..clear();
     final nuevaCtrl = _passNuevaCtrl..clear();
+    final confirmarCtrl = _passConfirmarCtrl..clear();
     final formKeyDialog = GlobalKey<FormState>();
 
     bool ocultarActual = true;
     bool ocultarNueva = true;
+    bool ocultarConfirmar = true;
 
     final ok = await showDialog<bool>(
       context: context,
@@ -246,7 +250,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Ingresa tu contraseña actual y define una nueva de al menos 8 caracteres.',
+                    'Ingresa tu contraseña actual, define una nueva de al menos 8 caracteres y confírmala.',
                     style: AppTextStyles.bodyMedium.copyWith(
                       fontSize: 12.5,
                       color: isDark
@@ -357,11 +361,78 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                         ),
                       ),
                     ),
+                    onChanged: (_) {
+                      // Revalidar la confirmacion al corregir la nueva, para
+                      // que el aviso de "no coinciden" no quede pegado.
+                      if (confirmarCtrl.text.isNotEmpty) setStateDialog(() {});
+                    },
                     validator: (v) {
+                      // Los tres unicos mensajes que define la HU005 son los
+                      // del escenario 6. Un campo vacio cae en la regla de
+                      // longitud, y una confirmacion vacia en la de
+                      // coincidencia, para no introducir literales extra.
+                      if ((v ?? '').length < 8) {
+                        return 'La contraseña debe tener como mínimo 8 caracteres';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: confirmarCtrl,
+                    obscureText: ocultarConfirmar,
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      fontSize: 14,
+                      color: isDark
+                          ? AppColors.darkTextPrimary
+                          : AppColors.textPrimary,
+                    ),
+                    decoration: InputDecoration(
+                      labelText: 'Confirmar contraseña nueva',
+                      prefixIcon: const Icon(Icons.key_outlined, size: 20),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          ocultarConfirmar
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                          size: 20,
+                        ),
+                        onPressed: () => setStateDialog(
+                                () => ocultarConfirmar = !ocultarConfirmar),
+                      ),
+                      filled: true,
+                      fillColor: isDark
+                          ? AppColors.darkBackground
+                          : const Color(0xFFF7F7F7),
+                      contentPadding: const EdgeInsets.symmetric(
+                          vertical: 12, horizontal: 16),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: isDark
+                              ? const Color(0xFF383838)
+                              : const Color(0xFFE0E0E0),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: AppColors.primaryLight,
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+                    validator: (v) {
+                      // Si ambos campos estan vacios son iguales, y este se
+                      // quedaba sin resaltar.
                       final texto = v ?? '';
-                      if (texto.length < 8) return 'Mínimo 8 caracteres';
-                      if (texto == actualCtrl.text) {
-                        return 'Debe ser distinta a la actual';
+                      if (texto.isEmpty) return 'Repita su contraseña';
+                      if (texto != nuevaCtrl.text) {
+                        return 'Las contraseñas no coinciden';
                       }
                       return null;
                     },
@@ -413,7 +484,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                             ),
                           ),
                           child: Text(
-                            'Actualizar',
+                            'Guardar cambios',
                             style: AppTextStyles.bodyMedium.copyWith(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -448,7 +519,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
       SnackBar(
         content: Text(
           exito
-              ? 'Contraseña actualizada correctamente'
+              ? 'Perfil actualizado correctamente'
               : provider.error ?? 'No se pudo cambiar',
           textAlign: TextAlign.center,
         ),

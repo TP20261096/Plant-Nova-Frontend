@@ -33,20 +33,20 @@ class ErrorView extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               '¡Ups! Algo salió mal',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
+                color: AppColors.texto(context),
               ),
             ),
             const SizedBox(height: 8),
             Text(
               message,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
-                color: AppColors.textSecondary,
+                color: AppColors.textoSuave(context),
               ),
               textAlign: TextAlign.center,
             ),

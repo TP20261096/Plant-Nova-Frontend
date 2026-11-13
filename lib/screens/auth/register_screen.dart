@@ -231,9 +231,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     'Repite la contraseña',
                     Icons.lock_outline,
                   ),
-                  validator: (v) => v != _passCtrl.text
-                      ? 'Las contraseñas no coinciden'
-                      : null,
+                  validator: (v) {
+                    // Con el formulario vacio ambos campos valen '' y son
+                    // iguales, asi que comparar sin mas dejaba este campo
+                    // sin resaltar mientras los otros cuatro si lo hacian.
+                    final texto = v ?? '';
+                    if (texto.isEmpty) return 'Repita su contraseña';
+                    if (texto != _passCtrl.text) {
+                      return 'Las contraseñas no coinciden';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 18),
 

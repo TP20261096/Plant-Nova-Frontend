@@ -3,8 +3,14 @@ import 'app_colors.dart';
 import 'app_text_styles.dart';
 
 class AppTheme {
+  /// AppTextStyles solo define geometria. El color del texto se resuelve
+  /// aqui, por tema, y lo heredan todos los Text que no declaran uno.
+  static TextTheme _texto(ThemeData base, Color color) =>
+      base.textTheme.apply(bodyColor: color, displayColor: color);
+
   static ThemeData lightTheme = ThemeData(
     useMaterial3: true,
+    textTheme: _texto(ThemeData.light(), AppColors.textPrimary),
     colorScheme: ColorScheme.fromSeed(
       seedColor: AppColors.primary,
       primary: AppColors.primary,
@@ -13,12 +19,14 @@ class AppTheme {
       error: AppColors.error,
     ),
     scaffoldBackgroundColor: AppColors.background,
-    appBarTheme: const AppBarTheme(
+    appBarTheme: AppBarTheme(
       backgroundColor: AppColors.surface,
       foregroundColor: AppColors.textPrimary,
       elevation: 0,
       centerTitle: true,
-      titleTextStyle: AppTextStyles.titleLarge,
+      titleTextStyle: AppTextStyles.titleLarge.copyWith(
+        color: AppColors.textPrimary,
+      ),
     ),
     cardTheme: CardThemeData(
       color: AppColors.surface,
@@ -81,6 +89,7 @@ class AppTheme {
 
   static ThemeData darkTheme = ThemeData(
     useMaterial3: true,
+    textTheme: _texto(ThemeData.dark(), AppColors.darkTextPrimary),
     colorScheme: ColorScheme.fromSeed(
       seedColor: AppColors.primary,
       brightness: Brightness.dark,
